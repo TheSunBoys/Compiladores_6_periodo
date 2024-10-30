@@ -1,9 +1,0 @@
-<?xml version="1.0" ?>
-<root>
- <nome>João</nome>
- <idade>30</idade>
- <habilidades>
-  <habilidades>python</habilidades>
-  <habilidades>java</habilidades>
- </habilidades>
-</root>

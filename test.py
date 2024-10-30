@@ -1,22 +1,18 @@
 import re
 from colorama import Fore, Style
 
-# positive_numbers = 0123456789
-# negative_numbers = 123456789
-
 # Nova expressão regular
-regex = r'''\[
-    (
-        # (-?\d+|(-\d+):(-\d+)|(\d):())  # Grupo para números
-        (-([1-9]\d+):-([1-9]\d+)|([0-9]]\d+):([0-9]\d+))|(-?\d+)
-
-    )
+regex = r'''
+\[
+        -[1-9]+:-[1-9]+          # Dois números negativos
+        |
+        [0-9]+:[0-9]+             # Dois números positivos ou zero
+        |
+        -?\d+                     # Um único número (positivo ou negativo)
     |
-    (
-        (\'[^\']*\'|"[^"]*") #|     # Grupo para strings
-        # (\'[^\']*:\'[^\']*\')|     # Slice de strings entre aspas simples
-        # ("[^"]*:"[^"]*")          # Slice de strings entre aspas duplas
-    )
+    
+        "[a-zA-Z]+"|'[a-zA-Z]+'|'[a-zA-Z]+':'[a-zA-Z]+'|"[a-zA-Z]+":"[a-zA-Z]+"       # String entre aspas simples ou duplas
+    
 \]'''
 
 # Lista de casos de teste como objetos
