@@ -15,6 +15,27 @@ regex = r'''
     
 \]'''
 
+regex = r"""\[-[1-9]+:-[1-9]+\]"""
+
+regex = r'''
+\[
+    (
+        -[1-9]\d+:-[1-9]\d+        # Dois números negativos
+        |
+        \d+:\d+                    # Dois números positivos ou zero
+        |
+        -?\d+                      # Um número (positivo ou negativo)
+    )
+    |
+    (
+        "[a-zA-Z]+"|
+        '[a-zA-Z]+'|
+        '[a-zA-Z]+:[a-zA-Z]+'|
+        "[a-zA-Z]+:[a-zA-Z]+"   # Strings entre aspas simples ou duplas
+    )
+\]
+'''
+
 # Lista de casos de teste como objetos
 test_cases = [
     {"input": 'x[0]', "should_accept": True},
@@ -49,8 +70,13 @@ for test in test_cases:
     should_accept = test["should_accept"]
 
     if is_valid == should_accept:
-        print(f"{Fore.GREEN}Entrada: {test['input']} -> Capturado: {match.group(0) if match else 'Nenhum'} (Válido){Style.RESET_ALL}")
-        Trues.append(test["input"])
+        print(test["input"])
+        if match:
+            print(f"{Fore.GREEN}Entrada: {test['input']} -> Capturado: {match.group(0)+match.group(1)} (Válido){Style.RESET_ALL}")
+            Trues.append(test["input"])
+        else:
+            print(f"{Fore.RED}Entrada: {test['input']} -> Não Capturado: {match.group(0) if match else 'Nenhum'} (Inválido){Style.RESET_ALL}")
+            Falses.append(test["input"])
     else:
         print(f"{Fore.RED}Entrada: {test['input']} -> Não capturado (Inválido){Style.RESET_ALL}")
         Falses.append(test['input'])
