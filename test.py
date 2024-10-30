@@ -1,38 +1,16 @@
 import re
 from colorama import Fore, Style
 
-# Nova expressão regular
-regex = r'''
-\[
-        -[1-9]+:-[1-9]+          # Dois números negativos
-        |
-        [0-9]+:[0-9]+             # Dois números positivos ou zero
-        |
-        -?\d+                     # Um único número (positivo ou negativo)
-    |
-    
-        "[a-zA-Z]+"|'[a-zA-Z]+'|'[a-zA-Z]+':'[a-zA-Z]+'|"[a-zA-Z]+":"[a-zA-Z]+"       # String entre aspas simples ou duplas
-    
-\]'''
-
-regex = r"""\[-[1-9]+:-[1-9]+\]"""
-
-regex = r'''
-\[
+regex = r'''x\[
+    \s*
     (
-        -[1-9]\d+:-[1-9]\d+        # Dois números negativos
+        -[1-9]+(:-[1-9]+)?
         |
-        \d+:\d+                    # Dois números positivos ou zero
-        |
-        -?\d+                      # Um número (positivo ou negativo)
+        \d+(:\d+)?            # Inteiro positivo/negativo ou slice numérico
+        # |
+        # (['"][^\[\]"]*['"])         # String entre aspas simples ou duplas
     )
-    |
-    (
-        "[a-zA-Z]+"|
-        '[a-zA-Z]+'|
-        '[a-zA-Z]+:[a-zA-Z]+'|
-        "[a-zA-Z]+:[a-zA-Z]+"   # Strings entre aspas simples ou duplas
-    )
+    \s*
 \]
 '''
 
@@ -72,7 +50,7 @@ for test in test_cases:
     if is_valid == should_accept:
         print(test["input"])
         if match:
-            print(f"{Fore.GREEN}Entrada: {test['input']} -> Capturado: {match.group(0)+match.group(1)} (Válido){Style.RESET_ALL}")
+            print(f"{Fore.GREEN}Entrada: {test['input']} -> Capturado: {match.group(1)} (Válido){Style.RESET_ALL}")
             Trues.append(test["input"])
         else:
             print(f"{Fore.RED}Entrada: {test['input']} -> Não Capturado: {match.group(0) if match else 'Nenhum'} (Inválido){Style.RESET_ALL}")
