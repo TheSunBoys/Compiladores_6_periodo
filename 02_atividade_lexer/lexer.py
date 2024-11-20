@@ -40,22 +40,27 @@ class Parser:
         return False
 
     def I(self):
-        """Regra para I -> p | n | s | I : I | v [ I ] | ε"""
+        """
+        Regra para I:
+        I -> p | n | s | I : I | v [ I ] | ε
+        """
         start = self.current  # Salva o estado atual para backtracking
 
-        # Verifica p ou n
-        if self.match('p') or self.match('n'):
-            self.log("Reconheceu um número")
+        # Casos básicos: p, n ou s
+        if self.match('p') or self.match('n') or self.match('s'):
+            self.log("Reconheceu p, n ou s")
             return True
 
-        # Verifica s (string)
-        elif self.match('s'):
-            self.log("Reconheceu uma string")
-            return True
+        # Slice (I : I)
+        if self.I_simple_or_empty():
+            if self.match(':'):
+                if self.I_simple_or_empty():
+                    self.log("Reconheceu um slice (I : I)")
+                    return True
+            self.current = start  # Backtrack caso falhe
 
-        # Verifica v [ I ]
-        elif self.match('v'):
-            self.log("Reconheceu outra variável (v)")
+        # Variável aninhada (v [ I ])
+        if self.match('v'):
             if self.match('['):
                 if self.I():
                     if self.match(']'):
@@ -63,16 +68,21 @@ class Parser:
                         return True
             self.current = start  # Backtrack caso falhe
 
-        # Verifica I : I (slice)
-        elif self.I():
-            if self.match(':'):
-                if self.I():
-                    self.log("Reconheceu um slice (I : I)")
-                    return True
-            self.current = start  # Backtrack caso falhe
-
         # ε (vazio)
         self.log("Reconheceu expressão vazia (ε)")
+        return True
+
+    def I_simple_or_empty(self):
+        """
+        Regra auxiliar para tratar índices opcionais:
+        I_simple_or_empty -> p | n | s | ε
+        """
+        start = self.current
+        if self.match('p') or self.match('n') or self.match('s'):
+            self.log("Reconheceu um índice simples (p, n ou s)")
+            return True
+        self.current = start  # Backtrack
+        self.log("Reconheceu índice vazio (ε)")
         return True
 
     def parse(self):
@@ -84,14 +94,25 @@ class Parser:
 if __name__ == "__main__":
     # Exemplos de entrada
     tokens_list = [
-        'v[v[p:p]]',  # Aninhado
-        'v[p:s]',  # Simples
-        'v[:]',  # Slice vazio
-        'v[v["s"]]',  # Variável aninhada com string
+        'v[p]',          # Acesso simples com número positivo
+        'v[n]',          # Acesso simples com número negativo
+        'v[s]',          # Acesso simples com string
+        'v[p:p]',        # Slice numérico
+        'v[s:s]',        # Slice string
+        'v[:]',          # Slice vazio
+        'v[p:]',         # Slice parcial
+        'v[:p]',         # Slice parcial
+        'v[v[p:n]]',     # Variável aninhada com slice
+        'v[v[s:s]]',     # Variável aninhada com string
+        'v[v[:]]',       # Variável aninhada com slice vazio
+        'v[:s]',         # Slice parcial com string
+        'v[s:]',         # Slice parcial com string
+        'v[p:s]',        # Slice misto
+        'v[v["s"]]',     # Variável aninhada com string
     ]
 
     for token in tokens_list:
-        print(f"Entrada: {token}")
+        print(f"{Fore.GREEN}Entrada{Fore.RESET}: {Fore.YELLOW}{token}{Fore.RESET}")
         tokens = tokenize(token)  # Gera a lista de tokens
         print(f"Tokens: {tokens}")
 
