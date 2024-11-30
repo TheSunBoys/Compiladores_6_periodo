@@ -1,3 +1,8 @@
+'''
+- Código feito em aula pelo professor Sebastião
+- Foi usado como referência para o Analisador Sintático Descendente 
+'''
+
 cadeia = ''
 pos_cadeia = 0
 
