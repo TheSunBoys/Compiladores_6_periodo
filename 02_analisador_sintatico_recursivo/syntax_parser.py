@@ -213,13 +213,13 @@ if __name__ == "__main__":
         'v[s:]',                  # Aceitar
         'v[p:s]',                 # Rejeitar (tipos diferentes)
         'v[:]',                   # Aceitar
-        transform_to_program_format('[8:9]'),
-        transform_to_program_format('[a["a":"b"]]'),
-        transform_to_program_format('[8:]'),
-        transform_to_program_format('[:]'),
-        transform_to_program_format('["a":9]'),
-        transform_to_program_format('[-1:9]'),
-        transform_to_program_format('[vba[8:9]]'),
+        transform_to_program_format('[8:9]'), # Aceitar
+        transform_to_program_format('[a["a":"b"]]'), # Aceitar
+        transform_to_program_format('[8:]'), # Aceitar
+        transform_to_program_format('[:]'), # Aceitar
+        transform_to_program_format('["a":9]'), # Rejeitar (tipos diferentes)
+        transform_to_program_format('[-1:9]'), # Rejeitar (tipos diferentes)
+        transform_to_program_format('[vba[8:9]]'), # Aceitar
     ]
 
     # criando novamente o arquivo de log e usando 'a+' pra poder escrever no arquivo novas linhas
