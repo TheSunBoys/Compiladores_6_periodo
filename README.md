@@ -26,6 +26,15 @@ implementação da atividade do Analisador Sintático Descendente descrita no ar
 - syntax_parser.py (código implementado da atividade do Analisador Sintático Descendente)
 - Trabalho teórico-prático - Análise sintática ascendente - 2ª avaliação.pdf (Descrição da atividade)
 
+! Quando rodar o código vai mostrar os resultados no terminal e no arquivo log.txt que vai ser gerado
+! Para mostrar apenas os resultados sem ter os logs do código mude o parâmetro "only_results" na atribuição do parser:
+
+```python
+
+parser = Parser(tokens, only_results=False) # mostrar todo o log de tokens no parser
+parser = Parser(tokens, only_results=True) # mostrar apenas o resultado se foi aceita ou não
+```
+
 ```shell
 02_analisador_sintatico_recursivo
 ├── sebas_recursiva.py
