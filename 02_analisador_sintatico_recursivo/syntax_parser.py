@@ -55,6 +55,8 @@ class Parser:
         self.current = 0
         if only_results:
             self.only_results = True
+        else:
+            self.only_results = False
 
     def log(self, message):
         """Loga mensagens com o nome do método atual."""
@@ -223,7 +225,7 @@ if __name__ == "__main__":
     # criando novamente o arquivo de log e usando 'a+' pra poder escrever no arquivo novas linhas
     if os.path.exists('./log.txt'):
         os.remove('./log.txt')
-    file = open('./log.txt', 'a+')
+    file = open('./log.txt', 'a+', encoding='utf-8')
 
     for token in tokens_list:
         print(f"{Fore.GREEN}Entrada{Fore.RESET}: \033[1m{Fore.YELLOW}{token}{Fore.RESET}\033[0m")
@@ -235,7 +237,7 @@ if __name__ == "__main__":
         print(f"Tokens: {formatted_tokens}")
         file.write(f"Tokens: {tokens}\n")
 
-        parser = Parser(tokens, only_results=True)
+        parser = Parser(tokens, only_results=True) #para mostrar o log dos tokens consumidos mude o only_results para False ;)
         result = parser.parse()
         if result is True:
             print(f"Resultado: {Fore.GREEN}Aceito{Fore.RESET}")
