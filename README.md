@@ -94,4 +94,30 @@ veja mais sobre: [https://github.com/HigherOrderCO/Bend](https://github.com/High
 - bend run-rs <file.bend> -s # adicione o "-s" no comando para rodar o código sequencialmente
 ```
 
+#### Arch linux configuração para usar CUDA
+instalação das libs do CUDA
+```bash
+sudo pacman -S cuda
+sudo pacman -S cuda-tools
+```
 
+verifique se há uma versão menor ou igual a 13 do gcc (necessário para o CUDA) 
+```bash
+ls -l /usr/bin/gcc* # mostra todas as opções do gcc (se houver uma versão <=13 use ela senão instale)
+```
+
+caso não haja instale algum desses (processo demorado pela compilação do gcc)
+```bash
+yay -S gcc11
+which gcc11 # escolha a versão do gcc e guarde o caminho onde ela está
+```
+
+escreva isso no arquivo de inicialização do seu shell: .bashrc, .zshrc, etc... 
+```bash
+export CUDA_HOME=/opt/cuda
+export PATH=$CUDA_HOME/bin:$PATH
+export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRA>
+export CXX=/usr/bin/gcc-13 # aqui você coloca o caminho do gcc instalado >=13 
+```
+
+** agora prossiga para as instalações de instalação do HVM e Bend **
