@@ -1,0 +1,4118 @@
+# builtins.md
+
+> this is a WIP based on [Builtins.bend](https://github.com/HigherOrderCO/Bend/blob/main/src/fun/builtins.bend).
+
+# Built-in Types and Functions
+
+**Bend** built-in types and functions, this document serves as a reference guide. Read more at [FEATURES.md](https://github.com/HigherOrderCO/Bend/blob/main/FEATURES.md).
+
+## String
+
+```python
+type String = (Cons head ~tail) | (Nil)
+```
+
+- **Nil**: Represents an empty string.
+- **Cons head ~tail**: Represents a string with a `head` character and a `tail` string.
+
+### Syntax
+
+A String literal is surrounded with `"`. Accepts the same values as characters literals.
+
+```
+"Hello, World!"
+```
+
+### Functions
+
+#### String/equals
+
+Checks if two strings are equal.
+
+```python
+def String/equals(s1: String, s2: String) -> u24
+```
+
+#### String/split
+
+Splits a string into a list of strings based on the given delimiter.
+
+```python
+def String/split(s: String, delimiter: u24) -> [String]
+```
+
+## List
+
+```python
+type List = (Cons head ~tail) | (Nil)
+```
+
+- **Nil**: Represents an empty list.
+- **Cons head ~tail**: Represents a list with a `head` element and a `tail` list.
+
+### Syntax
+
+A List of values can be written using `[ ]`, it can have multiple values inside, using `,` you can divide its value in a list of multiple elements.
+
+```
+["This", "List", "Has", "Multiple", "Values"]
+```
+
+### Functions
+
+#### List/length
+
+```python
+def List/length(list: [a]) -> (length: u24, list: [a])
+```
+
+Returns a tuple containing the length and the list itself.
+
+#### List/reverse
+
+```python
+def List/reverse(list: [a]) -> [a]
+```
+
+Reverses the elements of a list.
+
+#### List/flatten
+
+```python
+def List/flatten(list: [[a]]) -> [a]
+```
+
+Returns a flattened list from a list of lists. Example:
+
+```python
+List/flatten([[1], [2, 3], [4]])
+
+# Result: [1, 2, 3, 4]
+```
+
+#### List/concat
+
+```python
+def List/concat(xs: [a], ys: [a]) -> [a]
+```
+
+Appends two lists together. Example:
+
+```python
+List/concat([1, 2], [4, 5])
+
+# Result: [1, 2, 4, 5]
+```
+
+#### List/filter
+
+Filters a list based on a predicate function.
+
+```python
+List/filter(xs: List(T), pred: T -> Bool) -> List(T)
+```
+
+#### List/split_once
+
+Splits a list into two lists at the first occurrence of a value.
+
+```python
+List/split_once(xs: List(T), val: T) -> (Result(List(T), List(T)))
+```
+
+## Result
+
+```python
+type Result<A, B>:
+  Ok { val: A }
+  Err { val: B }
+```
+
+### Result/unwrap
+
+Returns the inner value of `Result/Ok` or `Result/Err`.
+
+If the types `A` and `B` are different, should only be used in type unsafe programs or when only one variant is guaranteed to happen.
+
+```python
+def Result/unwrap(result: Result<A, B>): A || B
+```
+
+## Tree
+
+```python
+type Tree:
+  Node { ~left, ~right }
+  Leaf { value }
+```
+
+**`Tree`** represents a tree with values stored in the leaves.
+Trees are a structure that naturally lends itself to parallel recursion, so writing your problem in terms of trees is a good first approach to parallelize your code.
+
+- **Node { ~left ~right }**: Represents a tree node with `left` and `right` subtrees.
+- **Leaf { value }**: Represents one of the ends of the tree, storing `value`.
+
+#### Syntax
+
+**Bend** provides the `![]` operator to create tree branches and the `!` operator to create a tree leaf.
+
+```py
+# ![a, b] => Equivalent to Tree/Node { left: a, right: b }
+# !x      => Equivalent to Tree/Leaf { value: x }
+tree = ![![!1, !2],![!3, !4]]
+```
+
+Technically your trees don't need to end with leaves, but if you don't, your program will be very hard to reason about.
+
+## Map
+
+```python
+type Map:
+  Node { value ~left ~right }
+  Leaf
+```
+
+**`Map`** represents a tree with values stored in the branches.
+It is meant to be used as an efficient map data structure with integer keys and O(log n) read and write operations.
+
+- **Node { value ~left ~right }**: Represents a map node with a `value` and `left` and `right` subtrees. Empty nodes have `*` stored in the `value` field.
+- **Leaf**: Represents an unwritten, empty portion of the map.
+
+#### Syntax
+
+Here's how you create a new `Map` with some initial values.:
+
+```python
+{ 0: 4, `hi`: "bye", 'c': 2 + 3 }
+```
+
+The keys must be `U24` numbers, and can be given as literals or any other expression that evaluates to a `U24`.
+
+The values can be anything, but storing data of different types in a `Map` will make it harder for you to reason about it.
+
+You can read and write a value of a map with the `[]` operator:
+
+```python
+map = { 0: "zero", 1: "one", 2: "two", 3: "three" }
+map[0] = "not zero"
+map[1] = 2
+map[2] = 3
+map[3] = map[1] + map[map[1]]
+```
+
+Here, `map` must be the name of the `Map` variable, and the keys inside `[]` can be any expression that evaluates to a `U24`.
+
+## Map functions
+
+### Map/empty
+
+Initializes an empty map.
+
+```python
+Map/empty = Map/Leaf
+```
+
+### Map/get
+
+Retrieves a `value` from the `map` based on the `key`.
+Returns a tuple with the value and the `map` unchanged.
+
+```rust
+Map/get map key =
+  match map {
+    Map/Leaf: (*, map)
+    Map/Node:
+      switch _ = (== 0 key) {
+        0: switch _ = (% key 2) {
+          0:
+            let (got, rest) = (Map/get map.left (/ key 2))
+            (got, (Map/Node map.value rest map.right))
+          _:
+            let (got, rest) = (Map/get map.right (/ key 2))
+            (got, (Map/Node map.value map.left rest))
+        }
+        _: (map.value, map)
+      }
+  }
+```
+
+#### Syntax
+
+Considering the following map
+
+```python
+{ 0: "hello", 1: "bye", 2: "maybe", 3: "yes"}
+```
+
+The `get` function can be written as
+
+```
+return x[0]  # Gets the value of the key 0
+```
+
+And the value resultant from the get function would be:
+
+```
+"hello"
+```
+
+### Map/set
+
+Sets a `value` in the `map` at the specified `key`.
+Returns the map with the new value.
+
+```rust
+Map/set map key value =
+  match map {
+    Map/Node:
+      switch _ = (== 0 key) {
+        0: switch _ = (% key 2) {
+          0: (Map/Node map.value (Map/set map.left (/ key 2) value) map.right)
+          _: (Map/Node map.value map.left (Map/set map.right (/ key 2) value))
+        }
+        _: (Map/Node value map.left map.right)
+      }
+    Map/Leaf:
+      switch _ = (== 0 key) {
+        0: switch _ = (% key 2) {
+          0: (Map/Node * (Map/set Map/Leaf (/ key 2) value) Map/Leaf)
+          _: (Map/Node * Map/Leaf (Map/set Map/Leaf (/ key 2) value))
+        }
+        _: (Map/Node value Map/Leaf Map/Leaf)
+      }
+  }
+```
+
+#### Syntax
+
+Considering the following tree
+
+```python
+{ 0: "hello", 1: "bye", 2: "maybe", 3: "yes"}
+```
+
+The `set` function can be written as
+
+```py
+x[0] = "swapped"     # Assigns the key 0 to the value "swapped"
+```
+
+And the value resultant from the get function would be:
+
+```py
+{ 0: "swapped", 1: "bye", 2: "maybe", 3: "yes"}
+```
+
+If there's no matching `key` in the tree, it would add a new branch to that tree with the value `set`
+
+```py
+x[4] = "added"     # Assigns the key 4 to the value "added"
+```
+
+The new tree
+
+```py
+{ 0: "swapped", 1: "bye", 2: "maybe", 3: "yes", 4: "added"}
+```
+
+### Map/map
+
+Applies a function to a value in the map.
+Returns the map with the value mapped.
+
+```rust
+Map/map (Map/Leaf)                  key f = Map/Leaf
+Map/map (Map/Node value left right) key f =
+  switch _ = (== 0 key) {
+    0: switch _ = (% key 2) {
+      0:
+        (Map/Node value (Map/map left (/ key 2) f) right)
+      _:
+        (Map/Node value left (Map/map right (/ key 2) f))
+    }
+    _: (Map/Node (f value) left right)
+  }
+```
+
+#### Syntax
+
+With the same map that we `set` in the previous section, we can map it's values with `@=`:
+
+```py
+x[0] @= lambda y: String/concat(y, " and mapped")
+# x[0] now contains "swapped and mapped"
+```
+
+## Nat
+
+```python
+type Nat = (Succ ~pred) | (Zero)
+```
+
+- **Succ ~pred**: Represents a natural number successor.
+- **Zero**: Represents the natural number zero.
+
+### Syntax
+
+A Natural Number can be written with literals with a `#` before the literal number.
+
+```
+#1337
+```
+
+## DiffList
+
+DiffList is a list that has constant time prepends (cons), appends and concatenation, but can't be pattern matched.
+
+It is implemented as a function that receives a list to be appended to the last element of the DiffList.
+
+For example, the list `List/Cons(1, List/Cons(2, List/Nil))` can be written as the difference list `lambda x: List/Cons(1, List/Cons(2, x))`.
+
+### Functions
+
+#### DiffList/new
+
+Creates a new difference list.
+
+```python
+def DiffList/new() -> (List(T) -> List(T))
+```
+
+#### DiffList/append
+
+Appends a value to the end of the difference list.
+
+```python
+def DiffList/append(diff: List(T) -> List(T), val: T) -> (List(T) -> List(T))
+```
+
+#### DiffList/cons
+
+Appends a value to the beginning of the difference list.
+
+```python
+def DiffList/cons(diff: List(T) -> List(T), val: T) -> (List(T) -> List(T))
+```
+
+#### DiffList/to_list
+
+Converts a difference list to a regular cons list.
+
+```python
+def DiffList/to_list(diff: List(T) -> List(T)) -> (List(T))
+```
+
+## IO
+
+The basic builtin IO functions are under development and will be stable in the next milestone.
+
+Here is the current list of functions, but be aware that they may change in the near future.
+
+### Printing
+
+```python
+def IO/print(text)
+```
+
+Prints the string `text` to the standard output, encoded with utf-8.
+
+### Input
+
+```python
+def IO/input() -> String
+```
+
+Reads characters from the standard input until a newline is found.
+
+Returns the read input as a String decoded with utf-8.
+
+### File IO
+
+#### File open
+
+```python
+def IO/FS/open(path, mode)
+```
+
+Opens a file with with `path` being given as a string and `mode` being a string with the mode to open the file in. The mode should be one of the following:
+
+- `"r"`: Read mode
+- `"w"`: Write mode (write at the beginning of the file, overwriting any existing content)
+- `"a"`: Append mode (write at the end of the file)
+- `"r+"`: Read and write mode
+- `"w+"`: Read and write mode
+- `"a+"`: Read and append mode
+
+Returns an U24 with the file descriptor. File descriptors are not necessarily the same as the ones assigned by the operating system, but rather unique identifiers internal to Bend's runtime.
+
+#### File descriptors for standard files
+
+The standard input/output files are always open and assigned the following file descriptors:
+
+- `IO/FS/STDIN = 0`: Standard input
+- `IO/FS/STDOUT = 1`: Standard output
+- `IO/FS/STDERR = 2`: Standard error
+
+#### File close
+
+```python
+def IO/FS/close(file)
+```
+
+Closes the file with the given `file` descriptor.
+
+#### File read
+
+```python
+def IO/FS/read(file, num_bytes)
+```
+
+Reads `num_bytes` bytes from the file with the given `file` descriptor.
+
+Returns a list of U24 with each element representing a byte read from the file.
+
+```python
+def IO/FS/read_line(file)
+```
+
+Reads a line from the file with the given `file` descriptor.
+
+Returns a list of U24 with each element representing a byte read from the file.
+
+```python
+def IO/FS/read_until_end(file)
+```
+
+Reads until the end of the file with the given `file` descriptor.
+
+Returns a list of U24 with each element representing a byte read from the file.
+
+```python
+def IO/FS/read_file(path)
+```
+
+Reads an entire file with the given `path` and returns a list of U24 with each element representing a byte read from the file.
+
+#### File write
+
+```python
+def IO/FS/write(file, bytes)
+```
+
+Writes `bytes`, a list of U24 with each element representing a byte, to the file with the given `file` descriptor.
+
+Returns nothing (`*`).
+
+```python
+def IO/FS/write_file(path, bytes)
+```
+
+Writes `bytes`, a list of U24 with each element representing a byte, as the entire content of the file with the given `path`.
+
+#### File seek
+
+```python
+def IO/FS/seek(file, offset, mode)
+```
+
+Moves the current position of the file with the given `file` descriptor to the given `offset`, an I24 or U24 number, in bytes.
+
+`mode` can be one of the following:
+
+- `IO/FS/SEEK_SET = 0`: Seek from start of file
+- `IO/FS/SEEK_CUR = 1`: Seek from current position
+- `IO/FS/SEEK_END = 2`: Seek from end of file
+
+Returns nothing (`*`).
+
+#### File flush
+
+```python
+def IO/FS/flush(file)
+```
+
+Flushes the file with the given `file` descriptor.
+
+Returns nothing (`*`).
+
+### Dinamically linked libraries
+
+It's possible to dynamically load shared objects (libraries) with functions that implement the Bend IO interface.
+You can read more on how to implement these libraries in the [Dynamically linked libraries and foreign functions](docs/ffi.md) documentation.
+
+#### IO/DyLib/open
+
+```py
+def IO/DyLib/open(path: String, lazy: u24) -> u24
+```
+
+Loads a dynamic library file.
+
+- `path` is the path to the library file.
+- `lazy` is a boolean encoded as a `u24` that determines if all functions are loaded lazily (`1`) or upfront (`0`).
+- Returns an unique id to the library object encoded as a `u24`.
+
+#### IO/DyLib/call
+
+```py
+def IO/DyLib/call(dl: u24, fn: String, args: Any) -> Any
+```
+
+Calls a function of a previously opened library.
+
+- `dl` is the id of the library object.
+- `fn` is the name of the function in the library.
+- `args` are the arguments to the function. The expected values depend on the called function.
+- The returned value is determined by the called function.
+
+#### IO/DyLib/close
+
+```py
+def IO/DyLib/close(dl: u24) -> None
+```
+
+Closes a previously open library.
+
+- `dl` is the id of the library object.
+- Returns nothing (`*`).
+
+## Native number casting
+
+### to_f24
+
+```py
+def to_f24(x: any number) -> f24
+```
+
+Casts any native number to an f24.
+
+### to_u24
+
+```py
+def to_u24(x: any number) -> u24
+```
+
+Casts any native number to a u24.
+
+### to_i24
+
+```py
+def to_i24(x: any number) -> i24
+```
+
+Casts any native number to an i24.
+
+## String encoding / decoding
+
+### String/decode_utf8
+
+```py
+def String/decode_utf8(bytes: [u24]) -> String
+```
+
+Decodes a sequence of bytes to a String using utf-8 encoding.
+
+### String/decode_ascii
+
+```py
+def String/decode_ascii(bytes: [u24]) -> String
+```
+
+Decodes a sequence of bytes to a String using ascii encoding.
+
+### String/encode_utf8
+
+```py
+def String/encode_utf8(s: String) -> [u24]
+```
+
+Encodes a String to a sequence of bytes using utf-8 encoding.
+
+### String/encode_ascii
+
+```py
+def String/encode_ascii(s: String) -> [u24]
+```
+
+Encodes a String to a sequence of bytes using ascii encoding.
+
+### Utf8/decode_character
+
+```py
+def Utf8/decode_character(bytes: [u24]) -> (rune: u24, rest: [u24])
+```
+
+Decodes a utf-8 character, returns a tuple containing the rune and the rest of the byte sequence.
+
+### Utf8/REPLACEMENT_CHARACTER
+
+```py
+def Utf8/REPLACEMENT_CHARACTER: u24 = '\u{FFFD}'
+```
+
+## Math
+
+### Math/log
+
+```py
+def Math/log(x: f24, base: f24) -> f24
+```
+
+Computes the logarithm of `x` with the specified `base`.
+
+### Math/atan2
+
+```py
+def Math/atan2(x: f24, y: f24) -> f24
+```
+
+Computes the arctangent of `y / x`.
+
+Has the same behaviour as `atan2f` in the C math lib.
+
+### Math/PI
+
+Defines the Pi constant.
+
+```py
+def Math/PI: f24 = 3.1415926535
+```
+
+### Math/E
+
+Euler's number
+
+```py
+def Math/E: f24 = 2.718281828
+```
+
+### Math/sin
+
+Computes the sine of the given angle in radians.
+
+```py
+def Math/sin(a: f24) -> f24
+```
+
+### Math/cos
+
+Computes the cosine of the given angle in radians.
+
+```py
+def Math/cos(a: f24) -> f24
+```
+
+### Math/tan
+
+Computes the tangent of the given angle in radians.
+
+```py
+def Math/tan(a: f24) -> f24
+```
+
+### Math/cot
+
+Computes the cotangent of the given angle in radians.
+
+```py
+def Math/cot(a: f24) -> f24
+```
+
+### Math/sec
+
+Computes the secant of the given angle in radians.
+
+```py
+def Math/sec(a: f24) -> f24
+```
+
+### Math/csc
+
+Computes the cosecant of the given angle in radians.
+
+```py
+def Math/csc(a: f24) -> f24
+```
+
+### Math/atan
+
+Computes the arctangent of the given angle.
+
+```py
+def Math/atan(a: f24) -> f24
+```
+
+### Math/asin
+
+Computes the arcsine of the given angle.
+
+```py
+def Math/asin(a: f24) -> f24
+```
+
+### Math/acos
+
+Computes the arccosine of the given angle.
+
+```py
+def Math/acos(a: f24) -> f24
+```
+
+### Math/radians
+
+Converts degrees to radians.
+
+```py
+def Math/radians(a: f24) -> f24
+```
+
+### Math/sqrt
+
+Computes the square root of the given number.
+
+```py
+def Math/sqrt(n: f24) -> f24
+```
+
+### Math/ceil
+
+Round float up to the nearest integer.
+
+```py
+def Math/ceil(n: f24) -> f24
+```
+
+### Math/floor
+
+Round float down to the nearest integer.
+
+```py
+def Math/floor(n: f24) -> f24
+```
+
+### Math/round
+
+Round float to the nearest integer.
+
+```py
+def Math/round(n: f24) -> f24
+```
+
+## Lazy thunks
+
+You can force a function call to be evaluated lazily by wrapping it in a lazy thunk.
+In Bend, this can be expressed as `lambda x: x(my_function, arg1, arg2, ...)`.
+
+To evaluate the thunk, you can use the `undefer` function or apply `lambda x: x` to it.
+
+
+################################################################################
+
+# cli-arguments.md
+
+# CLI arguments
+
+It's possible to pass arguments to a program executed with `bend run`:
+
+```sh
+bend run <Path to program> [Arguments in expression form]...
+```
+
+It accepts any expression that would also be valid inside a bend function.
+
+Arguments are passed to programs by applying them to the entry point function:
+
+```py
+# Imp syntax
+def main(x1, x2, x3):
+  return MainBody(x1 x2 x3)
+
+# Calling with `bend run <file> arg1 arg2 arg3 argN`, it becomes (in the "fun" syntax):
+main = (λx1 λx2 λx3 (MainBody x1 x2 x3) arg1 arg2 arg3 argN)
+```
+
+There are no restrictions on the number of arguments passed to the program.
+You can even pass more arguments than the function expects, although that can lead to unexpected results.
+```py
+# Expects 2 CLI arguments
+def main(x, y):
+  return {x - y, y - x}
+```
+```sh
+# Calling with just one argument
+> bend run <path> +5
+λa {(- a 5) (- a +5)}
+
+# Calling with two argument
+> bend run <path> +5 +3
+{+2 -2}
+
+# Calling with three argument
+# In this case, the third argument doesn't change anything
+# due to the underlying interaction rules.
+# If this were a variant of simply-typed lambda-calculus
+# it wouldn't be well-typed.
+> bend run <path> +5 +3 +1
+{+2 -2}
+```
+
+
+################################################################################
+
+# compilation-and-readback.md
+
+# Compilation and readback
+
+How are terms compiled to interaction net nodes?
+
+HVM has a bunch of useful nodes to write IC programs.
+Every node contains one `main` port `0` and two `auxiliary` ports, `1` and `2`.
+
+There are 7 kinds of nodes, Eraser, Constructor, Duplicator, Reference, Number, Operation and Match.
+
+A lambda `λx x` compiles into a Constructor node.
+An application `((λx x) (λx x))` also compiles into a Constructor node.
+
+```
+  0 - Points to the lambda occurrence      0 - Points to the function
+  |                                        |
+  λ Lambda                                 @ Application
+ / \                                      / \
+1   2 - Points to the lambda body        1   2 - Points to the application occurrence
+|                                        |
+Points to the lambda variable            Points to the argument
+```
+
+When reading back, if we visit a Constructor via port 0 then we know it's a lambda, and if we visit it via port 2 it's an application.
+
+- The `Number` node uses the label to store it's number.
+- An `Operation` node uses the label to store it's operation.
+
+A duplication `let {a b} = x` compiles into a Duplicator node.
+A superposition `{a b}` compiles to a Duplicator node too. The difference here comes from context too.
+
+```
+  0 - Points to the sup occurrence         0 - Points to the duplicated value
+  |                                        |
+  # Superposition                          # Duplication
+ / \                                      / \
+1   2 - Points to the second value       1   2 - Points to the second binding
+|                                        |
+Points to the first value                Points to the first binding
+```
+
+Check out [HVM-Core](https://github.com/HigherOrderCO/hvm-core/tree/main#language), one of the Higher Order Company's projects, to know more about this.
+
+
+################################################################################
+
+# compiler-options.md
+
+# Options
+
+| flag                                                                     | Default       | What it does?                             |
+| ------------------------------------------------------------------------ | ------------- | ----------------------------------------- |
+| `-Oall`                                                                  | Disabled      | Enables all compiler passes               |
+| `-Ono-all`                                                               | Disabled      | Disables all compiler passes              |
+| `-Oeta` `-Ono-eta`                                                       | Disabled      | [eta-reduction](#eta-reduction)           |
+| `-Oprune` `-Ono-prune`                                                   | Disabled      | [definition-pruning](#definition-pruning) |
+| `-Olinearize-matches` `-Olinearize-matches-alt` `-Ono-linearize-matches` | Enabled       | [linearize-matches](#linearize-matches)   |
+| `-Ofloat_combinators` `-Ono-float_combinators`                           | Enabled       | [float-combinators](#float-combinators)   |
+| `-Omerge` `-Ono-merge`                                                   | Disabled      | [definition-merging](#definition-merging) |
+| `-Oinline` `-Ono-inline`                                                 | Disabled      | [inline](#inline)                         |
+| `-Ocheck-net-size` `-Ono-check-net-size`                                 | Disabled      | [check-net-size](#check-net-size)         |
+| `-Oadt-scott` `-Oadt-num-scott`                                          | adt-num-scott | [adt-encoding](#adt-encoding)             |
+
+## Eta-reduction
+
+Enables or disables Eta Reduction for defined functions.
+
+Eta reduction simplifies lambda expressions, removing redundant parameters. [See also](https://wiki.haskell.org/Eta_conversion).
+
+Example:
+
+```py
+# program
+id = λx x
+id_id = λx (id x)
+
+# -Oeta
+id_id = id
+
+# -Ono-eta
+id_id = λz (id z)
+```
+
+## Definition-pruning
+
+If enabled, removes all unused definitions.
+
+Example:
+
+```py
+# program
+Id = λx x
+
+Id2 = Id
+
+Main = (Id 42)
+
+# -Oprune
+Id = λx x
+
+Main = (Id 42)
+
+# -Ono-prune
+Id = λx x
+
+Id2 = Id
+
+Main = (Id 42)
+```
+
+## Definition-merging
+
+If enabled, merges definitions that are identical at the term level.
+
+Example:
+
+```py
+# Original program
+id = λx x
+also_id = λx x
+main = (id also_id)
+
+# After definition merging
+id_$_also_id = λx x
+main = (id also_id)
+
+# -Ono-merge, compilation output
+@also_id = (a a)
+@id = (a a)
+@main = a
+& @id ~ (@also_id a)
+
+# -Omerge, compilation output
+@a = (a a)
+@main = a
+& @a ~ (@a a)
+```
+
+## linearize-matches
+
+Linearizes the variables between match cases, transforming them into combinators when possible.
+
+```py
+# Linearization means going from this
+@a @b switch a {
+  0: (Foo b)
+  _: (Bar a-1 b)
+}
+# To this
+@a @b (switch a {
+  0: @b (Foo b)
+  _: @b (Bar a-1 b)
+} b)
+```
+
+When the `linearize-matches` option is used, only linearizes variables that would generate an eta-reducible application.
+
+Example:
+
+```py
+λa λb switch a { 0: b; _: b }
+
+# Is transformed to
+λa switch a { 0: λb b; _: λb b }
+
+# But this stays the same
+λa λb switch b { 0: a; _: a }
+```
+
+When the `linearize-matches-extra` option is used, it linearizes all variables used in the arms.
+
+example:
+
+```py
+λa λb λc switch b { 0: a; _: c }
+
+# Is transformed to (without eta-reducing 'c')
+λa λb λc (switch b { 0: λa λc a; _: λa λc c } a c)
+```
+
+These automatic linearization passes are done before the manual linearization from `with` and doesn't duplicate manually linearized variables.
+
+```py
+# These variables are only linearized once
+λa λb λc switch a with b c { 0: (b c); _: (a-1 b c) }
+
+# With -Olinearize-matches becomes
+λa λb λc (switch a { 0: λb λc (b c); _: λb λc (a-1 b c) } b c)
+
+# And not
+λa λb λc (switch a { 0: λb λc λb λc (b c); _: λb λc λb λc  (a-1 b c) } b c b c)
+```
+
+## float-combinators
+
+Extracts closed terms to new definitions. See [lazy definitions](lazy-definitions.md#automatic-optimization).
+Since HVM-Core is an eager runtime, this pass is enabled by default to prevent infinite expansions.
+
+Example:
+
+```py
+True  =    λt λf λm t
+False =    λt λf λm f
+Maybe = λx λt λf λm (m x)
+
+getVal = λb (b 1 0 (λx (== x 1)))
+# `(λx (== x 1))` can be extracted, since there is no free variables.
+
+Cons = λh λt λc λn (c h t)
+Nil  = λc λn n
+
+fold = λinit λf λxs (xs λh λt (fold (f init h) f t) init)
+# Here we need to extract `λh λt (fold (f init h) f t)` to not expand `fold` infinitely, but it will not be extracted because of the free variable `init`.
+```
+
+# Inline
+
+If enabled, inlines terms that compile to nullary inet nodes (refs, numbers, erasures).
+
+Example:
+
+```py
+# program
+foo = 2
+id = λx x
+main = (id foo)
+
+# -Ono-inline, compilation output
+@foo = 2
+@id = (a a)
+@main = a
+& @id ~ (@foo a)
+
+# -Oinline, compilation output
+@foo = 2
+@id = (a a)
+@main = a
+& @id ~ (2 a)
+```
+
+## Check-net-size
+
+If enabled, checks that the size of each function after compilation has at most 64 HVM nodes.
+This is a memory restriction of the CUDA runtime, if you're not using the `*-cu` you can disable it.
+
+Example:
+
+```py
+# Without -Ocheck-net-size compiles normally.
+# But with -Ocheck-net-size it fails with
+# `Definition is too large for hvm`
+(Radix n) =
+  let r = Map_/Used
+  let r = (Swap (& n 1) r Map_/Free)
+  let r = (Swap (& n 2) r Map_/Free)
+  let r = (Swap (& n 4) r Map_/Free)
+  let r = (Swap (& n 8) r Map_/Free)
+  let r = (Swap (& n 16) r Map_/Free)
+  let r = (Swap (& n 32) r Map_/Free)
+  let r = (Swap (& n 64) r Map_/Free)
+  let r = (Swap (& n 128) r Map_/Free)
+  let r = (Swap (& n 256) r Map_/Free)
+  let r = (Swap (& n 512) r Map_/Free)
+  let r = (Swap (& n 1024) r Map_/Free)
+  let r = (Swap (& n 2048) r Map_/Free)
+  let r = (Swap (& n 4096) r Map_/Free)
+  let r = (Swap (& n 8192) r Map_/Free)
+  let r = (Swap (& n 16384) r Map_/Free)
+  let r = (Swap (& n 32768) r Map_/Free)
+  let r = (Swap (& n 65536) r Map_/Free)
+  let r = (Swap (& n 131072) r Map_/Free)
+  let r = (Swap (& n 262144) r Map_/Free)
+  let r = (Swap (& n 524288) r Map_/Free)
+  let r = (Swap (& n 1048576) r Map_/Free)
+  let r = (Swap (& n 2097152) r Map_/Free)
+  let r = (Swap (& n 4194304) r Map_/Free)
+  let r = (Swap (& n 8388608) r Map_/Free)
+  r
+```
+
+## ADT Encoding
+
+Selects the lambda encoding for types defined with `type` and `object`.
+
+`-Oadt-scott` uses Scott encoding.
+`-Oadt-num-scott` uses a variation of Scott encoding where instead of one lambda per constructor, we use a numeric tag to indicate which constructor it is. The numeric tag is assigned to the constructors in the order they are defined and each tag is accessible as a definition by `<type>/<ctr>/tag`.
+
+```py
+# Generates functions Option/Some and Option/None
+type Option:
+  Some { value }
+  None
+
+# With -Oadt-scott they become:
+Option/Some = λvalue λSome λNone (Some value)
+Option/None = λSome λNone (None)
+
+# With -Oadt-num-scott they become:
+Option/Some = λvalue λx (x Option/Some/tag value)
+Option/None = λx (x Option/None/tag)
+
+# Generated -Oadt-num-scott tags:
+Option/Some/tag = 0
+Option/None/tag = 1
+```
+
+Pattern-matching with `match` and `fold` is generated according to the encoding.
+
+Note: IO is **only** available with `-Oadt-num-scott`.
+
+
+################################################################################
+
+# defining-data-types.md
+
+# Defining data types
+
+It is possible to easily define complex data types using the `type` keyword.
+
+```py
+# A Boolean is either True or False
+type Bool = True | False
+```
+
+If a constructor has any arguments, parentheses are necessary around it:
+```py
+# An option either contains some value, or None
+type Option = (Some val) | None
+```
+
+If the data type has a single constructor, it can be destructured using `let`:
+```py
+# A Box is a wrapper around a value.
+type Boxed = (Box val)
+
+let (Box value) = boxed; value
+```
+
+The fields of the constructor that is being destructured with the `match` are bound to the matched variable plus `.` and the field names.
+```py
+Option.map = λoption λf
+  match option {
+    Some: (Some (f option.val))
+    None: None
+  }
+```
+
+Rules can also have patterns.
+They work like match expressions with explicit bindings:
+
+```py
+(Option.map (Some value) f) = (Some (f value))
+(Option.map None f) = None
+```
+
+However, they also allow matching on multiple values at once, which is something that regular `match` can't do:
+
+```py
+type Boolean = True | False
+
+(Option.is_both_some (Some lft_val) (Some rgt_val)) = True
+(Option.is_both_some lft rgt) = False
+```
+
+You can read more about pattern matching rules in [Pattern matching](/docs/pattern-matching.md).
+
+In conclusion, the `type` keyword is very useful as it allows you to easily create data types and deconstruct them.
+
+
+################################################################################
+
+# dups-and-sups.md
+
+# Dups and sups
+
+Term duplication is done automatically when a variable is used more than once. But it's possible to manually duplicate a term using `let`. This type of statement is called `dup` or `duplication`.
+```py
+# the number 2 in church encoding using let.
+ch2 = λf λx let {f1 f2} = f; (f1 (f2 x))
+
+# the number 3 in church encoding using let.
+ch3 = λf λx let {f0 f1} = f; let {f2 f3} = f0; (f1 (f2 (f3 x)))
+```
+
+A `sup` is a superposition of two values, it is defined using curly brackets with two terms inside. A superposition is the opposite of a duplication. 
+```py
+sup = {3 7}
+```
+
+Sups can be used anywhere a value is expected, if anything interacts with the superposition, the result is the superposition of that interaction on both the possible values:
+
+```py
+mul = λa λb (* a b)
+result     = (mul 2 5)         # returns 10
+result_sup = (mul 2 {5 7})     # returns {10 14}
+multi_sup  = (mul {2 3} {5 7}) # returns {{10 14} {15 21}}
+```
+
+If we pair a superposition with a duplication, the result is that they behave like constructing and destructing a pair:
+
+```py
+# each dup variable now has a copy of the {1 2} superposition
+let {x1 x2} = {1 2}
+```
+
+Due to how duplications are compiled, when two dups interact, they destructively interfere with each other.
+In this case the result doesn't follow the expected behavior (it's well defined at the HVM level, but is incorrect at a lambda-calculus level).
+
+That imposes a strong restriction on correct Bend programs: a variable should not duplicate another variable that itself duplicates some variables.
+
+The program below is an example where this can go wrong when using higher-order functions.
+```py
+def List/map(xs, f):
+  fold xs:
+    case List/Nil:
+      return List/Nil
+    case List/Cons:
+      # 'f' is duplicated here
+      return List/Cons(f(xs.head), List/map(xs.tail, f))
+      # This line above is converted by the compiler to an explicit duplication of 'f'
+      # {f1 f2} = f
+      # return List/Cons(f1(xs.head), List/map(xs.tail, f2))
+
+def main:
+  # This lambda duplicates `x` and is itself duplicated by the map function.
+  # This will result in wrong behavior.
+  # In this specific case, the runtime will catch it and generate an error,
+  # but at the moment that is not always the case.
+  return List/map([1, 2, 3], lambda x: (+ x x))
+```
+
+In this case, we can only have one source of duplication, or our results will be incorrect.
+Either List/map is linear (doesn't duplicate `f`) or the passed function is linear (doesn't duplicate `x` or any other variable inside it).
+
+
+################################################################################
+
+# ffi.md
+
+# Dynamically linked libraries and foreign functions
+
+We can add new IO functions to Bend during runtime by loading dynamic libraries.
+
+## Using IO dynamic libraries in Bend
+
+Here is an example of how we could load a Bend library that contains functions for working with directories.
+
+```py
+def main():
+  with IO:
+    # Open the dynamic library file
+    # The second argument is '0' if we want to load all functions immediately.
+    # Otherwise it should be '1' when we want to load functions as we use them.
+    # 'dl' is the unique id of the dynamic library.
+    dl <- IO/DyLib/open("./libbend_dirs.so", 0)
+
+    # We can now call functions from the dynamic library.
+    # We need to know what functions are available in the dynamic library.
+    # If you're writing a library for Bend that uses a dynamically linked library
+    # you should wrap the IO calls so that users don't need to know what's in the dynamic library.
+
+    # The first argument is the dynamic library id.
+    # The second argument is the name of the function we want to call as a String.
+    # The third argument are the arguments to the function.
+    # You need to know the types of the arguments and the return type of the function.
+
+    # In our example, 'ls' receives a path as a String and
+    # returns a String with the result of the 'ls' command.
+    files_bytes <- IO/DyLib/call(dl, "ls", "./")
+    files_str = String/decode_utf8(files_bytes)
+    files = String/split(files_str, '\n')
+
+    # We want to create a directory for a new user "my_user" if it doesn't exist.
+    my_dir = List/filter(files, String/equals("my_dir"))
+    match my_dir:
+      case List/Cons:
+        # The directory already exists, do nothing.
+        * <- IO/print("Directory already exists.\n")
+        status = wrap(-1)
+      case List/Nil:
+        # The directory doesn't exist, create it.
+        * <- IO/DyLib/call(dl, "mkdir", "./my_dir")
+        * <- IO/print("Directory created.\n")
+        status = wrap(+0)
+    status <- status
+
+    # Here the program ends so we didn't need to close the dynamic library,
+    # but it's good practice to do so once we know we won't need it anymore.
+    * <- IO/DyLib/close(dl)
+    return wrap(status)
+```
+
+## Writing IO dynamic libraries for Bend
+
+Bend IO libraries need to be implemented in C or Cuda (depending on the backend you're targeting) using the HVM API.
+
+### Writing libraries for the C runtime
+
+The functions you call from Bend using `IO/DyLib/call` must have the following signature:
+
+```c
+Port function_name(Net* net, Book* book, Port arg);
+```
+
+Where:
+
+- `net` is a pointer to the current network state.
+- `book` is a pointer to the book of function definitions.
+- `arg` is a pointer to the arguments of the function.
+
+The return value must be a `Port` that points to the return value of the function.
+
+HVM provides some util functions to do the conversions from HVM to C and vice versa,
+so that you don't need to understand the details of the HVM runtime.
+
+We can implement the example library from earlier for the C runtime with the following C code:
+
+```c
+// This is a header file that contains the HVM API.
+#include "hvm.h"
+
+// The headers we need to open and read directories.
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+
+// IO functions must have this exact signature.
+// The first argument is a pointer to the graph with the current state of the program.
+// The second argument is a pointer to the book of function definitions.
+// The third argument points to the arguments of the function.
+// The return value must be a port that points to the return value of the function.
+Port ls(Net* net, Book* book, Port arg) {
+  // The arguments first need to be converted from HVM to C.
+  // For the 'ls' function, this is just a single string.
+  Str path = readback_str(net, book, arg);
+
+
+  // Now we can do the actual IO operations.
+  // In this case, we list the contents of the directory
+  // by calling the 'ls' program as a subprocess.
+  char* cmd = malloc(path.len + strlen("ls ") + 1);
+  sprintf(cmd, "ls %s", path.buf);
+  free(path.buf);
+
+  FILE* pipe = popen(cmd, "r");
+  if (pipe == NULL) {
+    // It'd be best practice to return a Result type instead of a null value (ERA).
+    // If this command fails and the calling Bend program tries to use the result,
+    // it will get corrupted and spit out garbage.
+    fprintf(stderr, "failed to run command '%s': %s\n", cmd, strerror(errno));
+    return new_port(ERA, 0);
+  }
+  char buffer[512];
+  Bytes output = { .buf = NULL, .len = 0 };
+  while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+    size_t len = strlen(buffer);
+    char* new_result = realloc(output.buf, output.len + len + 1);
+    if (new_result == NULL) {
+      fprintf(stderr, "failed to allocate space for output of '%s': %s\n", cmd, strerror(errno));
+      free(cmd);
+      free(output.buf);
+      pclose(pipe);
+      return new_port(ERA, 0);
+    }
+    output.buf = new_result;
+    strcpy(output.buf + output.len, buffer);
+    output.len += len;
+  }
+
+  // After we're done with the operation, we convert it to HVM format.
+  // In this case, the output is the output of the 'ls' command as a list of bytes.
+  // We need to process it in Bend later to convert it to a list of file names.
+  Port output_port = inject_bytes(net, &output);
+
+  // Remember to free all the allocated memory.
+  free(cmd);
+  free(output.buf);
+  pclose(pipe);
+  return output_port;
+}
+
+Port mkdir(Net* net, Book* book, Port arg) {
+  // We do the same thing here as in the 'ls' function,
+  // except we call 'mkdir' which doesn't output anything.
+  Str path = readback_str(net, book, arg);
+
+  char* cmd = malloc(path.len + strlen("mkdir ") + 1);
+  sprintf(cmd, "mkdir %s", path.buf);
+  int res = system(cmd);
+
+  free(path.buf);
+  free(cmd);
+  return new_port(ERA, 0);
+}
+```
+
+To compile this code into a library, we can use the `gcc` compiler and include the HVM header files.
+
+Assuming that it's saved in a file called `libbend_dirs.c`, we can compile it with the following command:
+
+```sh
+# Needs to be compiled as a shared library with unresolved symbols.
+# For macOS:
+gcc -shared -o libbend_dirs.so -I /path/to/HVM/src/ libbend_dirs.c -undefined dynamic_lookup -fPIC
+
+# For Linux:
+gcc -shared -o libbend_dirs.so -I /path/to/HVM/src/ libbend_dirs.c -Wl,--unresolved-symbols=ignore-all -fPIC
+```
+
+Now we can use the dynamic library in our Bend program, we just need to pass the path to the library to `IO/DyLib/open`.
+
+### Writing libraries for the Cuda runtime
+
+Writing libraries for the Cuda runtime is very similar to writing libraries for the C runtime.
+
+The main difference is the function signature:
+
+```c++
+Port function_name(GNet* gnet, Port argm)
+```
+
+Where:
+
+- `gnet` is a pointer to the current network state.
+- `argm` is the argument to the function.
+
+The return value must be a `Port` that points to the return value of the function.
+
+To compile libraries of the Cuda runtime, we can use the `nvcc` compiler and include the HVM header files.
+
+Assuming that it's saved in a file called `libbend_dirs.cu`, we can compile it with the following command:
+
+```sh
+nvcc -shared -o libbend_dirs.so -I /path/to/hvm/ libbend_dirs.cu
+```
+
+### Compiling Bend programs that use dynamic libraries
+
+To compile the C or Cuda program generated from a Bend program that uses dynamic libraries, we need to use the `-rdynamic` flag to allow the dynamic library to use symbols from the main program.
+
+For example, if we have a Bend program called `main.bend` that uses the dynamic library `libbend_dirs.so`, we need compile to it with the following commands:
+
+```sh
+# Compiling for C
+bend gen-c my_app.bend > my_app.c
+gcc -rdynamic -lm my_app.c -o my_app
+
+# Compiling for Cuda
+bend gen-cu my_app.bend > my_app.cu
+nvcc --compiler-options=-rdynamic my_app.cu -o my_app
+```
+
+
+################################################################################
+
+# imports.md
+
+# Import System
+
+## Case Sensitivity
+All import paths are case-sensitive. Ensure that the case used in import statements matches exactly with the file and directory names.
+
+## Syntax
+Imports can be declared two ways:
+
+```py
+from path import name
+# or
+import path/name
+```
+
+## Project Structure
+Let's assume we have a bend project with the following structure:
+
+```
+my_project/
+├── main.bend
+├── utils/
+│   ├── helper.bend
+│   │   └── def calc
+│   └── math.bend
+│       ├── def add
+│       └── def subtract
+```
+
+## Importing Relative Paths
+Paths starting with `./` or `../` are imported relative to the file.
+
+### Example:
+```py
+# if used inside `my_project/*.bend`
+from ./utils import helper
+# if used inside `my_project/*/*.bend`
+import ../utils/helper
+```
+
+This will bind `calc` from `helper.bend` as `helper/calc`.
+
+## Importing Absolute Paths
+Otherwise, paths imported are relative to the folder of the main file.
+
+### Example:
+```py
+from utils import math
+# or
+import utils/math
+```
+
+This will bind `add` and `subtract` from `math.bend` as `math/add` and `math/subtract`.
+
+## Importing Specific Top-Level Names
+You can import specific top-level names from a file.
+
+### Example:
+```py
+from utils/helper import calc
+from utils/math import (add, subtract)
+# or
+import (utils/helper/calc, utils/math/add, utils/math/subtract)
+# or
+import utils/helper/calc
+import utils/math/add
+import utils/math/subtract
+```
+
+This will bind the names `calc`, `add` and `subtract` from their respective files. 
+
+## Importing All Names
+You can import all top-level names from a file using the wildcard `*`.
+
+### Example:
+```py
+from utils/math import *
+```
+
+This will bind the names `add` and `subtract` from `math.bend`. 
+
+## Importing All `.bend` Files from a Folder
+You can import all `.bend` files from a folder using the wildcard `*`.
+
+### Example:
+```py
+from utils import *
+```
+
+This will bind the names from `helper.bend` and `math.bend`, as `helper/calc`, `math/add` and `math/subtract`.
+
+## Aliasing Imports
+You can alias imports to a different name for convenience.
+
+### Importing a File with Alias
+Import the `file` top-level name from `file.bend` aliased to `alias`, and all other names as `alias/name`.
+
+### Example:
+```py
+from utils import helper as utilsHelper
+import utils/math as mathLib
+```
+
+This will bind the names from `helper.bend` and `math.bend`, as `utilsHelper/calc`, `mathLib/add` and `mathLib/subtract`.
+
+### Importing Specific Names with Aliases
+You can import specific top-level names and alias them to different names.
+
+### Example:
+```py
+from utils/helper import calc as calcFunc
+from utils/math import (add as addFunc, subtract as subFunc)
+# or
+import (utils/math/add as addFunc, utils/math/subtract as subFunc)
+```
+
+This will bind `calc`, `add` and `subtract` as `calcFunc`, `addFunc` and `subFunc` from their respective files.
+
+## Project Structure
+Let's assume we have a bend project with the following structure:
+
+```
+my_project/
+├── main.bend
+├── types/
+│   ├── List.bend
+│   │   └── type List: Nil | (Cons ..)
+│   └── List/
+│       ├── concat.bend
+│       │   └── def concat
+│       └── append.bend
+│           └── def append
+│           └── def helper
+```
+
+## Importing data types
+
+You can import a data type and its constructors by only importing its name.
+
+### Example:
+```py
+from types/List import List
+# behaves the same as 
+from types/List import (List, List/Nil, List/Cons)
+```
+
+Importing only `List` from `List.bend` will import the type `List` and bind its constructors name `List/Nil` and `List/Cons`. 
+
+## Importing files with a top level name equal to its name
+
+When a file and a top-level name in it share a name, for example, `List.bend`, `concat.bend` and `append.bend`, the bind of that import is simplified to the file name.
+
+### Example:
+```py
+from types/List import append
+```
+
+This will bind `append` and `append/helper` from `append.bend`.
+
+## Files and directories with the same name
+
+When files and directories share a name, both share the import namespace:
+
+```py
+from types/List import (List, concat)
+```
+
+This will attempt to import from both the `List.bend` file and the `List` folder, resulting in the binds `List/Nil`, `List/Cons` and `concat`.
+
+```py
+from types/List import *
+```
+
+This will import all the names from `List.bend`, then all the files inside the `List` folder, resulting in the binds `List/Nil`, `List/Cons`, `concat`, `append` and `append/helper`.
+
+In both cases, if a name is present as a top-level name on the file, and as a `.bend` file name inside the folder, it will result in an error.
+
+If you only want to import `List.bend` and not search the files in its folder, you can use the `import path` syntax:
+
+```py
+import types/List
+```
+
+
+################################################################################
+
+# lazy-definitions.md
+
+# Making recursive definitions lazy
+
+In strict-mode, some types of recursive terms will unroll indefinitely.
+
+This is a simple piece of code that works on many other functional programming languages, including hvm's lazy-mode, but hangs on strict-mode:
+
+```rust
+Cons = λx λxs λcons λnil (cons x xs)
+Nil  =        λcons λnil nil
+
+Map = λf λlist
+  let cons = λx λxs (Cons (f x) (Map f xs))
+  let nil = Nil
+  (list cons nil)
+
+Main = (Map λx (+ x 1) (Cons 1 Nil))
+```
+
+The recursive `Map` definition never gets reduced.
+Using the debug mode `-d` we can see the steps:
+
+```
+(Map λa (+ a 1) (Cons 1 Nil))
+---------------------------------------
+(Map λa (+ a 1) λb λ* (b 1 Nil))
+---------------------------------------
+(Cons (λa (+ a 1) 1) (Map λa (+ a 1) Nil))
+---------------------------------------
+(Cons (λa (+ a 1) 1) (Nil λb λc (Cons (λa (+ a 1) b) (Map λa (+ a 1) c)) Nil))
+---------------------------------------
+...
+```
+
+For similar reasons, if we try using Y combinator it also won't work.
+
+```rust
+Y = λf (λx (f (x x)) λx (f (x x)))
+
+Map = (Y λrec λf λlist
+  let cons = λx λxs (Cons (f x) (rec f xs))
+  let nil = Nil
+  (list cons nil f))
+```
+
+By linearizing `f`, the `Map` function "fully reduces" first and then applies `f`.
+
+```rust
+Map = λf λlist
+  let cons = λx λxs λf (Cons (f x) (Map f xs))
+  let nil = λf Nil
+  (list cons nil f)
+```
+
+This code will work as expected, since `cons` and `nil` are lambdas without free variables, they will be automatically floated to new definitions if the [float-combinators](compiler-options.md#float-combinators) option is active, allowing them to be unrolled lazily by hvm.
+
+It's recommended to use a [supercombinator](https://en.wikipedia.org/wiki/Supercombinator) formulation to make terms be unrolled lazily, preventing infinite expansion in recursive function bodies.
+
+If you have a set of mutually recursive functions, you only need to make one of the steps lazy. This might be useful when doing micro-optimizations, since it's possible to avoid part of the small performance cost of linearizing lambdas.
+
+### Automatic optimization
+
+Bend carries out [match linearization](compiler-options.md#linearize-matches) and [combinator floating](compiler-options.md#float-combinators) optimizations, enabled through the CLI, which are active by default in strict mode.
+
+Consider the code below:
+
+```rs
+Zero = λf λx x
+Succ = λn λf λx (f n)
+ToMachine = λn (n λp (+ 1 (ToMachine p)) 0)
+```
+
+The lambda terms without free variables are extracted to new definitions.
+
+```rs
+ToMachine0 = λp (+ 1 (ToMachine p))
+ToMachine = λn (n ToMachine0 0)
+```
+
+Definitions are lazy in the runtime. Floating lambda terms into new definitions will prevent infinite expansion.
+
+It's important to note that preventing infinite expansion through simple mutual recursion doesn't imply that a program lacks infinite expansion entirely or that it will terminate.
+
+
+################################################################################
+
+# native-numbers.md
+
+# Native numbers
+
+Currently Bend supports 3 types of native numbers for fast numeric operations (compared to lambda-encoded numbers):
+
+- U24: Unsigned integers (24 bits)
+- I24: Signed integers (24 bits, two's complement)
+- F24: Floating point numbers (single precision IEEE-754 floating point with the last bits of the mantissa implicitly set to zero)
+
+### U24
+
+Unsigned numbers are written as just the number and are represented as a 24 bit unsigned integer.
+
+```rs
+two = 2
+```
+
+### I24
+
+Signed numbers are written with a `+` or `-` sign and are represented as a 24 bit two's complement integer.
+
+```rs
+minus_two = -2
+plus_0 = +0
+```
+
+Positive numbers _must_ be written with a `+` sign, otherwise they'll be interpreted as unsigned.
+
+Numbers can also be written in binary or hexadecimal form. Underscores can be optionally used as digit separators to make large numbers more readable.
+
+```rs
+decimal =     1194684
+binary =      0b100_100_011_101_010_111_100
+hexadecimal = 0x123_abc
+hex_signed = -0xbeef
+```
+
+### F24
+
+Floating point numbers must have the decimal point `.` and can optionally take a sign `+` or `-`.
+They are represented as IEEE-754 single precision floating point numbers with the last bits of the mantissa implicitly set to zero.
+
+```py
+one = 1.0
+pi = +3.1415926535897932384626433 # Will get rounded to 24bit float
+a_millionth = 0.000001
+zero = 0.0
+minus_zero = -0.0
+```
+
+### Mixing number types
+
+The three number types are fundamentally different.
+If you mix two numbers of different types, HVM will interpret the binary representation of one of them incorrectly, leading to incorrect results. Which number is interpreted incorrectly depends on the situation and shouldn't be relied on for now.
+
+At the HVM level, both type and the operation are stored inside the number nodes as tags. One number stores the type, the other the operation.
+That means that we lose the type information of one of the numbers, which causes this behavior.
+During runtime, the executed numeric function depends on both the type tag and the operation tag. For example, the same tag is used for unsigned bitwise and floating point atan2, so mixing number types can give you very unexpected results.
+
+At the moment Bend doesn't have a way to convert between the different number types, but it will be added in the future.
+
+### Operations
+
+There is also support for native operations.
+In "Imp" syntax they are infix operators and in "Fun" syntax they are written in reverse polish notation (like you'd call a normal function).
+Each operation takes two arguments and returns a new number.
+
+```rs
+# In Fun syntax
+some_val = (+ (+ 7 4) (* 2 3))
+```
+
+These are the currently available operations:
+
+| Operation | Description              | Accepted types | Return type       |
+| --------- | ------------------------ | -------------- | ----------------- |
+| \+        | Addition                 | U24, I24, F24  | Same as arguments |
+| \-        | Subtraction              | U24, I24, F24  | Same as arguments |
+| \*        | Multiplication           | U24, I24, F24  | Same as arguments |
+| \/        | Division                 | U24, I24, F24  | Same as arguments |
+| \%        | Modulo                   | U24, I24, F24  | Same as arguments |
+| \==       | Equality                 | U24, I24, F24  | U24               |
+| \!=       | Inequality               | U24, I24, F24  | U24               |
+| \<        | Less than                | U24, I24, F24  | U24               |
+| \<=       | Less than or equal to    | U24, I24, F24  | U24               |
+| \>        | Greater than             | U24, I24, F24  | U24               |
+| \>=       | Greater than or equal to | U24, I24, F24  | U24               |
+| \&        | Bitwise and              | U24, I24       | Same as arguments |
+| \|        | Bitwise or               | U24, I24       | Same as arguments |
+| \^        | Bitwise xor              | U24, I24       | Same as arguments |
+| \*\*      | Exponentiation           | F24            | F24               |
+
+### Functions
+
+| Name           | Description                     | Accepted types | Return type |
+| -------------- | ------------------------------- | -------------- | ----------- |
+| `log(x, base)` | Logarithm                       | F24            | F24         |
+| `atan2(x, y)`  | 2 arguments arctangent (atan2f) | F24            | F24         |
+
+### Pattern matching
+
+Bend also includes a `switch` syntax for pattern-matching U24 numbers.
+
+```rs
+Number.to_church = λn λf λx
+  switch n {
+    0: x
+    _: (f (Number.to_church n-1 f x))
+  }
+```
+
+The `0` case matches when `n` is 0, and the `_` case matches when `n` is greater than 0.
+In the `_` arm, we can access the predecessor of `n` with the `n-1` variable.
+
+We can also match on more than one value at once.
+To do that, we must cover the cases in order, starting from 0.
+
+```rs
+Number.minus_three = λn λf λx
+  switch n {
+    0: 0
+    1: 0
+    2: 0
+    _: n-3
+  }
+```
+
+Using everything we learned, we can write a program that calculates the n-th Fibonacci number using native numbers:
+
+```py
+fibonacci = λn # n is the argument
+  switch n {
+    # If the number is 0, then return 0
+    0: 0
+    # If the number is 1, then return 1
+    1: 1
+    # Otherwise, return the sum of (fib (n-2 + 1)) and (fib n-2)
+    # The successor pattern provides a `var`-`successor number` bind
+    _: (+ (fibonacci (+ n-2 1)) (fibonacci n-2))
+  }
+
+main = (fibonacci 15)
+```
+
+### Pattern matching numbers in Fun syntax equations
+
+In Fun syntax, we can also use pattern matching equations to match on native unsigned numbers.
+
+```rs
+(fib 1) = 1
+(fib 0) = 0
+(fib n) = (+ (fib (- n 1)) (fib (- n 2)))
+```
+
+Unlike with `switch`, you can match any number and in any order.
+The variable pattern is used to match on all other numbers.
+Unlike with `switch`, you can't directly access the predecessor of the number.
+
+You can read [Pattern matching](pattern-matching.md) for more information about how pattern matching equations are converted to `switch` and `match` expressions.
+
+
+################################################################################
+
+# pattern-matching.md
+
+# Pattern Matching
+
+Switches on many numbers are compiled to sequences of simple switch expressions:
+```py
+  # These two are equivalent
+  switch n {
+    0: A
+    1: B
+    2: C
+    _: (D n-3)
+  }
+
+  switch n {
+    0: A
+    _: switch n-1 = n-1 {
+      0: B
+      _: switch n-2 = n-1-1 {
+        0: C
+        _: use n-3 = n-2-1; (D n-3)
+      }
+    }
+  }
+```
+
+Matches on ADT constructors are compiled to different expressions depending on the chosen encoding:
+```py
+type Maybe = (Some val) | None
+
+UnwrapOrZero x = match x {
+  Some: x.val
+  None: 0
+}
+
+# If the current encoding is 'adt-num-scott' it becomes:
+Some = λval λx (x 0 val)
+None = λx (x 1)
+UnwrapOrZero x = (x λtag switch tag {
+  0: λx.val x.val
+  _: λ* 0
+})
+
+# Otherwise, if the current encoding is 'adt-scott' it becomes:
+Some = λval λSome λNone (Some val)
+None = λSome λNone None
+UnwrapOrZero x = (x λx.val x.val 0)
+```
+
+### Pattern Matching functions
+
+Besides `match`and `switch` terms, Bend also supports equational-style pattern matching functions.
+
+```py
+And True  b = b
+And False * = False
+```
+
+There are advantages and disadvantages to using this syntax.
+They offer more advanced pattern matching capabilities and also take care linearizing variables to make sure that recursive definitions work correctly in strict evaluation mode, but take away your control of how the pattern matching is implemented and can be a bit more resource intensive in some cases.
+
+Pattern matching equations are transformed into a tree of `match` and `switch` terms from left to right.
+```py
+# These two are equivalent
+(Foo 0 false (Cons h1 (Cons h2 t))) = (A h1 h2 t)
+(Foo 0 * *) = B
+(Foo n false *) = n
+(Foo * true *) = 0
+
+Foo = λarg1 λarg2 λarg3 (switch arg1 {
+  0: λarg2 λarg3 match arg2 {
+    true: λarg3 B
+    false: λarg3 match arg3 {
+      Cons: (match arg3.tail {
+        Cons: λarg3.head (A arg3.head arg3.tail.head arg3.tail.tail)
+        Nil: λarg3.head B
+      } arg3.head)
+      Nil: B
+    }
+  }
+  _: λarg2 λarg3 (match arg2 {
+    true: λarg1-1 0
+    false: λarg1-1 (+ arg1-1 0)
+  } arg1-1)
+} arg2 arg3)
+```
+Besides the compilation of complex pattern matching into simple `match` and `switch` expressions, this example also shows how some arguments are pushed inside the match.
+When compiling for strict evaluation, by default any variables that are used inside a match get linearized by adding a lambda in each arm and an application passing its value inwards.
+To ensure that recursive pattern matching functions don't loop in strict mode, it's necessary to make the match arms combinators, so that they can be converted into separate functions and a lazy reference is used in the match arm.
+```py
+# This is what the Foo function actually compiles to.
+# With -Olinearize-matches and -Ofloat-combinators (default on strict mode)
+(Foo) = λa λb λc (switch a { 0: Foo$C5; _: Foo$C8 } b c)
+
+(Foo$C5) = λd λe (d Foo$C0 Foo$C4 e) # Foo.case_0
+(Foo$C0) = λ* B                      # Foo.case_0.case_true
+(Foo$C4) = λg (g Foo$C3 B)           # Foo.case_0.case_false
+(Foo$C3) = λh λi (i Foo$C1 Foo$C2 h) # Foo.case_0.case_false.case_cons
+(Foo$C1) = λj λk λl (A l j k)        # Foo.case_0.case_false.case_cons.case_cons
+(Foo$C2) = λ* B                      # Foo.case_0.case_false.case_cons.case_nil
+
+(Foo$C8) = λn λo λ* (o Foo$C6 Foo$C7 n) # Foo.case_+
+(Foo$C6) = λ* 0                         # Foo.case_+.case_true
+(Foo$C7) = λr (+ r 1)                   # Foo.case_+.case_false
+```
+
+Pattern matching equations also support matching on non-consecutive numbers:
+```rust
+Parse '(' = Token.LParenthesis
+Parse ')' = Token.RParenthesis
+Parse 'λ' = Token.Lambda
+Parse  n  = (Token.Name n)
+```
+This is compiled to a cascade of `switch` expressions, from smallest value to largest.
+```py
+Parse = λarg0 switch matched = (- arg0 '(') {
+  0: Token.LParenthesis
+  # ')' + 1 - '(' is resolved during compile time
+  _: switch matched = (- matched-1 ( ')'-1-'(' ) {
+    0: Token.RParenthesis
+    _: switch matched = (- matched-1 ( 'λ'-1-')' ) {
+      0: Token.Lambda
+      _: use n = (+ 1 matched-1); (Token.Name n)
+    }
+  }
+}
+```
+Unlike with `switch`, with pattern matching equations you can't access the value of the predecessor of the matched value directly, but instead you can match on a variable.
+Notice how in the example above, `n` is bound to `(+ 1 matched-1)`.
+
+Notice that this definition is valid, since `*` will cover both `p` and `0` cases when the first argument is `False`.
+
+```rust
+pred_if False * if_false = if_false
+pred_if True  p *        = (- p 1)
+pred_if True  0 *        = 0
+```
+
+Pattern matching on strings and lists desugars to a list of matches on List/String.cons and List/String.nil
+
+```py
+Hi "hi" = 1
+Hi _ = 0
+
+Foo [] = 0
+Foo [x] = x
+Foo _ = 3
+
+# Becomes:
+Hi (String.cons 'h' (String.cons 'i' String.nil)) = 2
+Hi _ = 0
+
+Foo List.nil = 0
+Foo (List.cons x List.nil) = x
+Foo _ = 3
+```
+
+
+################################################################################
+
+# syntax.md
+
+# Syntax
+
+This file provides a reference of each possible syntax of bend programming language.
+
+Click [here](#imp-syntax) to see the syntax for "imp", the variant of bend that looks like an imperative language like python.
+
+Click [here](#fun-syntax) to see the syntax for "fun", the variant of bend that looks like a functional language like Haskell or ML.
+
+Click [here](#import-syntax) to see the import syntax.
+
+Click [here](#comments) to see the syntax for commenting code.
+
+Click [here](#imp-type-syntax) to see the imperative type syntax.
+
+Click [here](#fun-type-syntax) to see the functional type syntax.
+
+Both syntaxes can be mixed in the same file like the example below:
+
+```python
+object Point { x, y }
+
+type MyTree = (Node ~left ~right) | (Leaf value)
+
+type Bool:
+  True
+  False
+
+#{
+  The identity function is a function that always returns the value that
+  was used as its argument.
+#}
+def identity(x):
+  return x
+
+main =
+  let result = (identity 41)
+  (+ result 1)
+```
+
+<div id="imp-syntax"></div>
+
+# Imp Syntax
+
+## Top-level definitions
+
+### Def
+
+Defines a top level function.
+
+```python
+def add(x: u24, y: u24) -> u24:
+  result = x + y
+  return result
+
+def unchecked two() -> u24:
+  return 2
+
+def main:
+  return add(40, two)
+```
+
+A function definition is composed by a name, a sequence of parameters and a body.
+
+A top-level name can be anything matching the regex `[A-Za-z0-9_.-/]+`, except it can't have `__` (used for generated names) or start with `//`.
+
+The last statement of each function must either be a `return` or a selection statement (`if`, `switch`, `match`, `fold`)
+where all branches `return`.
+
+Each parameter of the function can receive a type annotation with `param_name: type` and the return value of the function can also be annotated with `def fn_name(args) -> return_type:`.
+
+We can force the type-checker to run or not on a specific function by adding `checked` or `unchecked` between `def` and the function name.
+
+### Type
+
+Defines an algebraic data type.
+
+```python
+type Option:
+  Some { value }
+  None
+
+type Tree(T):
+  Node { value: T, ~left: Tree(T), ~right: Tree(T) }
+  Leaf
+```
+
+Type names must be unique, and should have at least one constructor.
+
+For a generic or polymorphic type, all type variables used in the constructors must be declared first in the type definition with `type Name(type_var1, ...):`
+
+Each constructor is defined by a name followed by its fields. The fields can be annotated with types that will be checked when creating values of that type.
+
+The `~` notation indicates a recursive field. To use `fold` statements with a type its recursive fields must be correctly marked with `~`.
+
+The constructor names inherit the name of their types and become functions (`Tree/Node` and `Tree/Leaf` in this case).
+The exact function they become depends on the encoding.
+
+Read [defining data types](./defining-data-types.md) to know more.
+
+### Object
+
+Defines a type with a single constructor (like a struct, a record or a class).
+
+```python
+object Pair(A, B) { fst: A, snd: B }
+
+object Function(T) { name: String, args, body: T }
+
+object Vec { len, data }
+```
+
+The constructor created from this definition has the same name as the type.
+
+Since it only has one constructor, `fold`ing a recursive `object` requires some additional stop condition apart from pattern matching on the value itself (like an `if` statement).
+
+## Statements
+
+### Assignment
+
+```python
+value = 2
+return value
+
+(first, second) = (1, 2)
+return second
+
+{x y} = {2 3}
+```
+
+Assigns a value to a variable.
+
+It's possible to assign to a pattern, like a tuple or superposition, which will destructure the value returned by the expression.
+
+```python
+(first, second) = (1, 2)
+
+first, second = 1, 2
+```
+
+### Use
+
+```rust
+use x = 2 + 3
+return x + x
+```
+
+Inline copies of the declared bind, it is equivalent to this code:
+
+```rust
+return ((2 + 3) + (2 + 3))
+```
+
+### In-Place Operation
+
+```python
+x += 1
+return x
+```
+
+The in-place operation does an infix operation and re-assigns a variable.
+
+The operations are:
+
+- Addition `+=`
+- Subtraction `-=`
+- Multiplication `*=`
+- Division `/=`
+- Bit And `&=`
+- Bit Or `|=`
+- Bit Xor `^=`
+- Mapper `@=`
+
+The mapper in-place operation applies a function and re-assigns the variable:
+
+```python
+x = "hello"
+x @= String/uppercase
+```
+
+### Return
+
+```python
+return "hello"
+```
+
+Returns the expression that follows. The last statement of each branch of a function must be a `return`.
+
+```py
+# Allowed, all branches return
+def max(a, b):
+  if a > b:
+    return a
+  else:
+    return b
+```
+
+```py
+# Not allowed, early return
+def Foo(x):
+  if test_condition(x):
+    return "err"
+  else:
+    y = map(x)
+
+  return y
+```
+
+```py
+# Not allowed, one of the branches doesn't return
+def Foo(a, b):
+  if a < b:
+    return a
+  else:
+    c = a + b
+```
+
+### If
+
+```python
+if condition:
+  return 0
+else:
+  return 1
+```
+
+A branching statement where `else` is mandatory.
+
+The condition must return a `u24` number, where 0 will run the `else` branch and any other value will return the first one.
+
+It is possible to make if-chains using `elif`:
+
+```python
+if condition1:
+  return 0
+elif condition2:
+  return 1
+elif condition3:
+  return 2
+else:
+  return 3
+```
+
+The conditions are evaluated in order, one by one, stopping at the first successful case.
+
+### Switch
+
+```python
+switch x = 5:
+  case 0:
+    return 6
+  case 1:
+    return 7
+  case _:
+    return x-2
+```
+
+A switch binds a variable name to the result of a given condition and branches to the case matching its value. Cases
+must be listed from least to greatest, beginning with `0` and incrementing by 1. The last case must be `_`, which
+catches all values not explicitly enumerated. Switches may only be used with native numbers values.
+
+In the last case, the predecessor value is available with the name `bound_var-next_num`, where `bound_var` is the variable
+set by the condition and `next_num` is the expected value of the next case. For example, the above example code returns
+`3`, since `x-2` is bound to `5 - 2` and the value of `x` doesn't match any explicit case.
+
+This switch statement is equivalent to the `if` from the previous section:
+
+```python
+switch _ = condition:
+  case 0:
+    # else branch
+    return 1
+  case _:
+    # then branch
+    return 0
+```
+
+### Match
+
+```python
+match x = Option/none:
+  case Option/some:
+    y = x.value
+  case Option/none:
+    y = 0
+```
+
+A pattern matching statement, the cases must be the constructor names of the matching value.
+
+It is possible to bind a variable name to the matching value. The fields of the matched constructor are bound to `matched_var.field_name`.
+
+### Fold
+
+```python
+fold x = Tree/Leaf:
+  case Tree/Node:
+    return x.value + x.left + x.right
+  case Tree/Leaf:
+    return 0
+```
+
+A fold statement. Reduces the given value with the given match cases.
+
+It is possible to bind a variable name to the matching value. Just like in `match`, the fields are bound to `matched_var.field_name`.
+
+For fields notated with `~` in the type definition, the fold function is called implicitly.
+
+It is equivalent to the inline recursive function:
+
+```python
+def fold(x):
+  match x:
+    case Tree/Node:
+      return x.value + fold(x.left) + fold(x.right)
+    case Tree/Leaf:
+      return 0
+...
+fold(Tree/Leaf)
+```
+
+### Bend
+
+Bend can be used to create recursive data structures:
+
+```rust
+bend x = 0:
+  when x < 10:
+    left = fork(x + 1)
+    right = fork(x + 1)
+    y = Tree/Node(left, right)
+  else:
+    y = Tree/Leaf(x)
+```
+
+Which binds a variable to the return of an inline recursive function.
+The function `fork` is available inside the `when` arm of the `bend` and calls it recursively.
+
+It is possible to pass multiple state variables, which can be initialized:
+
+```python
+bend x = 1, y = 2 ...:
+  when condition(x, y, ...):
+    ...
+```
+
+When calling `fork`, the function must receive the same number of arguments as the number of state variables.
+
+It is equivalent to this inline recursive function:
+
+```python
+def bend(x, y, ...):
+  if condition(x, y, ...):
+    ...
+    return ... bend(x, y, ...) ...
+  else:
+    return ...
+```
+
+### Open
+
+```python
+p = Point { x: 1, y: 2 }
+open Point: p
+return Point { x: p.x * p.x, y: p.y * p.y }
+```
+
+Brings the inner fields of an object into scope. The original variable can still be accessed, but doing so will cause any used fields to be duplicated.
+
+It's equivalent to pattern matching on the object, with the restriction that its type must have only one constructor.
+
+```python
+open Point: p
+...
+
+# Equivalent to:
+match p:
+  Point:
+    ...
+```
+
+### With block
+
+```python
+with Result:
+  x <- safe_div(2, 0)
+  return x
+```
+
+A monadic `with` block.
+
+Where `x <- ...` performs a monadic operation.
+
+Expects `Result` to be a type defined with `type` or `object` and the function `Result/bind` to be defined.
+The monadic bind function should be of type `(Result a) -> (a -> Result b) -> Result b`, like this:
+
+```python
+def Result/bind(res, nxt):
+  match res:
+    case Result/Ok:
+      nxt = undefer(nxt)
+      return nxt(res.value)
+    case Result/Err:
+      return res
+```
+
+However, the second argument, `nxt`, is actually a deferred call to the continuation, passing any free variables as arguments.
+Therefore, all `bind` functions must call the builtin function `undefer` before using the value of `nxt`, as in the example above.
+This is necessary to ensure that the continuation in recursive monadic functions stays lazy and doesn't expand infinitely.
+
+This is an example of a recursive function that would loop if passing the variable `a` to the recursive call `Result/foo(a, b)` was not deferred:
+
+```python
+def Result/foo(x, y):
+  with Result:
+    a <- Result/Ok(1)
+    if b:
+      b = Result/Err(x)
+    else:
+      b = Result/Ok(y)
+    b <- b
+    return Result/foo(a, b)
+```
+
+Other statements are allowed inside the `with` block and it can both return a value at the end and bind a variable, like branching statements do.
+
+```python
+# Also ok:
+with Result:
+  x <- safe_div(2, 0);
+  y = x
+return y
+```
+
+The name `wrap` is bound inside a `with` block as a shorthand for `Type/wrap`,
+and it calls the unit function of the monad, also called `pure` in some languages:
+
+```python
+def Result/wrap(x):
+  return Result/Ok(x)
+
+with Result:
+  x <- some_operation(...)
+  y <- some_operation(...)
+  return wrap(x * y)
+```
+
+### Def
+
+Creates a local function visible in the current block capturing variables:
+
+```python
+def main:
+  y = 41
+  x = 1
+  def aux_add(x):
+    return x + y
+  return aux_add(x)
+```
+
+## Expressions
+
+### Variables
+
+```python
+some_var
+
+foo/bar
+```
+
+A variable can be anything matching the regex `[A-Za-z0-9_.-/]+` but with some restrictions:
+
+- It can not start with `//`
+- It can not contain `__`
+
+A variable is a name for some immutable expression. It is possible to rebind variables with the same name.
+
+```python
+x = 1
+x = x + 1
+```
+
+Note that `-` is also used for negative numbers and as the numeric operator. Bend's grammar is greedily parsed from left to right, meaning that `x-3` always represents a name and not `x - 3` or a sequence of expressions like in `[x -3]`.
+
+### Lambdas
+
+```python
+lambda x: x
+
+lambda x, y: y
+
+λx y: x
+```
+
+Lambdas represents anonymous inline functions, it can bind a variable and has an expression as body.
+
+Using `,` is optional.
+
+### Unscoped Lambdas and Variables
+
+```python
+lambda $x: $x
+
+λ$x $y: $x
+```
+
+Like lambdas, with the exception that the variable starts with a `$` sign. Every unscoped variable in a function must have a unique name and must be used exactly once.
+
+Unscoped variables are not transformed and linearized like normal scoped variables.
+
+Read [using scopeless lambdas](/docs/using-scopeless-lambdas.md) to know more about their behavior.
+
+### Function Call
+
+```python
+callee(arg_1, arg_2, arg_n)
+```
+
+A call is written with a callee followed by a list of arguments. Arguments can be optionally separated by `,`.
+
+The effect of a function call is to substitute the callee with it's body and replace the arguments by the passed variables.
+
+The called function can be any expression and it supports partial applications.
+
+Optionally, if you call a function by its name, you can used named arguments:
+
+```python
+callee(expr1, expr2, arg4 = expr3, arg3 = expr4)
+```
+
+In case named arguments are used, they must come after the positional arguments and the function must be called with exactly the number of arguments of its definition.
+
+### Eraser
+
+```python
+*
+
+eraser = *
+
+*(41 + 1)  # applies 41 + 1 to `*` erasing the number and returns `*`
+
+* = 41 + 1 # erases 41 + 1
+```
+
+The effect of an eraser is to free memory. Erasers behave like a `null`.
+
+It's impossible to compare or match eraser values.
+
+It is implicitly inserted for variables that have not been used:
+
+```python
+def constant(x):
+  return 8345
+```
+
+### Tuple
+
+```python
+(3, 9)
+```
+
+A Tuple is surrounded by `(` `)` and should contain 2 or more elements. Elements are separated by `,`.
+
+### Superposition
+
+```python
+{1 2 3}
+```
+
+A superposition of values is defined using `{` `}` with at least 2 expressions inside. Elements can be optionally separated by `,`.
+
+Read [sups and dups](./dups-and-sups.md) to know more.
+
+### Numbers and Infix Operations
+
+Currently, bend supports 3 types of numbers: floats, integers and unsigned integers. All of then are 24 bit sized.
+
+```python
+f24 = +88.012
+
+i24 = -42
+
+u24 = 42
+```
+
+Currently, the 3 number types cannot be mixed.
+
+| Operation             | Syntax   | Supported Types  |
+| --------------------- | -------- | ---------------- |
+| Addition              | x + y    | int, float, uint |
+| Subtraction           | x - y    | int, float, uint |
+| Multiplication        | x \* y   | int, float, uint |
+| Division              | x / y    | int, float, uint |
+| Remainder             | x % y    | int, float, uint |
+| Exponentiation        | x \*\* y | float            |
+| Equal                 | x == y   | int, float, uint |
+| Not Equal             | x != y   | int, float, uint |
+| Less Than             | x < y    | int, float, uint |
+| Greater Than          | x > y    | int, float, uint |
+| Less Than or Equal    | x <= y   | int, float, uint |
+| Greater Than or Equal | x >= y   | int, float, uint |
+| Bitwise And           | x & y    | int, uint        |
+| Bitwise Or            | x \| y   | int, uint        |
+| Bitwise Xor           | x ^ y    | int, uint        |
+| Bitwise Right Shift   | x >> y   | uint             |
+| Bitwise Left Shift    | x << y   | uint             |
+
+Hexadecimal and binary floating-point literals are also supported.
+
+In these representations, each digit after the point is divided according to the base’s power of the digit's position.
+Specifically, for hexadecimal floating-point numbers, each place after the dot represents a fraction of 16 to the power of the digit's depth.
+Similarly, for binary floating-point numbers, each place after the dot represents a fraction of 2 to the power of the digit's depth.
+
+```python
+0xA.A == 10.625
+
+0b111.111 == 7.875
+```
+
+### Constructor Literals
+
+Constructors are just functions.
+A Constructor expression is equivalent to calling a Constructor function, they have 2 syntaxes:
+
+```python
+# Constructor syntax, requires all field names
+Type/Ctr { field1: 4, field2: 8 }
+
+# Function syntax
+Type/Ctr(field1 = 4, field2 = 8)
+
+Type/Ctr(4, field2 = 8)
+
+Type/Ctr(4, 8)
+
+Type/Ctr(4) # Can be partially applied if not using named arguments
+```
+
+### Character Literal
+
+```python
+'x'
+```
+
+A Character is surrounded with `'`. Accepts unicode characters, unicode escapes in the form '\u{hex value}' and is desugared to the unicode codepoint as an `u24`.
+
+Only supports unicode codepoints up to `0xFFFFFF`.
+
+### Symbol Literal
+
+```python
+# Becomes 2146 (33 << 6 + 34)
+`hi`
+```
+
+A Symbol encodes a up to 4 base64 characters as a `u24` number. It is surrounded by `\``.
+
+Empty characters are interpreted as `A` which has value 0, meaning that `B` is the same as `AAAB`.
+
+### String Literal
+
+```python
+"Hello, World!"
+```
+
+A String literal is surrounded with `"`. Accepts the same values as characters literals.
+
+It is desugared to constructor calls of the built-in type String, `String/cons(head, ~tail)` and `String/nil` .
+
+### List Literal
+
+```python
+[1, 2, "three"]
+```
+
+A List literal is surrounded by `[` `]`. The elements must be separated by `,`.
+
+It is desugared to constructor calls of the built-in type List, `List/cons(head, ~tail)` and `List/nil` .
+
+### Tree Literals
+
+```python
+![![1, 2], ![3, 4]]
+```
+
+The Tree literals `![]` and `!` are used to create values of the built-in type `Tree`.
+
+`![a b]` is equivalent to `Tree/Node(a, b)`.
+
+`!x` is equivalent to `Tree/Leaf(x)`.
+
+### Map Literals
+
+```python
+{ 0: 4, `hi`: "bye", 'c': 2 + 3 }
+x[0] = 5     # Assigns the key 0 to the value 5
+return x[0]  # Gets the value of the key 0
+```
+
+Bend has a built-in binary tree map data structure where the key is a `u24`, meaning you can use numbers, characters, and symbols as keys.
+
+### List Comprehension
+
+```python
+[x + 1 for x in list]
+
+[x + 1 for x in list if x > 2]
+```
+
+A List Comprehension generates a new list, it can be extracted in 3 parts.
+
+`[expression . iterator . condition]`
+
+Expression: The expression to be performed in the iterator element.
+
+Iterator: Binds a name to the list elements.
+
+Condition: Optional, is used to filter the list elements.
+
+It is desugared to a fold statement:
+
+```python
+fold list:
+  List/cons:
+    if condition:
+      List/cons(list.head, list.tail)
+    else:
+      list.tail
+  List/nil:
+    List/nil
+```
+
+<div id="fun-syntax"></div>
+
+# Fun Syntax
+
+## Top-level definitions
+
+```rust
+type Name
+  = (Ctr1 arg1 arg2)
+  | Ctr2
+
+Name (Ctr1 sub_arg1 sub_arg2) arg3 = rule0_body
+Name Ctr2 arg3 = rule1_body
+```
+
+A top-level name can be anything matching the regex `[A-Za-z0-9_.-/]+`, except it can't have `__` (used for generated names) or start with `//`.
+
+### Function Definitions
+
+A function definition is composed of a sequence of pattern matching equations.
+Each rule is the name of the function, a sequence of patterns and then the body.
+
+```rust
+identity x = x
+
+(Bool.neg True)  = False
+(Bool.neg False) = True
+
+MapMaybe (Some val) f = (Some (f val))
+MapMaybe None f = None
+
+Pair.get (fst, snd) f = (f fst snd)
+```
+
+A rule pattern can be:
+
+- A variable.
+- A number.
+- A constructor.
+- A tuple.
+- A superposition.
+- A wildcard `*`.
+
+And the builtin types that desugar to one of the above:
+
+- A list (becomes a constructor).
+- A string (becomes a constructor).
+- A natural number (becomes a constructor).
+- A character (becomes a number).
+- A symbol (becomes a number);
+
+Unscoped variables can't be defined in a rule pattern.
+
+The rule body is a term, there are no statements in the Fun variant of Bend.
+
+Read [pattern matching](./pattern-matching.md) to learn about what exactly the rules for pattern matching equations are.
+
+### Type
+
+Defines an Algebraic Data Type, it should have at least one constructor.
+
+```rust
+type Tree
+  = (Leaf value)
+  | (Node ~left ~right)
+  | Nil
+```
+
+`Tree` is the ADT name and it should be unique, except that it can be used once by a constructor name.
+
+Each constructor is defined by a name followed by its fields. The `~` notation describes a recursive field.
+
+The constructors inherit the name of their types and become functions (`Tree/Node` and `Tree/Leaf` in this case).
+
+## Terms
+
+### Variables
+
+A variable can be anything matching the regex `[A-Za-z0-9_.-/]+` but with some restrictions:
+
+- It can not start with `//`
+- It can not contain `__`
+
+A variable is a name for some immutable expression. It is possible to rebind variables with the same name.
+
+```rust
+let x = 1
+let x = (+ x 1)
+```
+
+### Lambda
+
+```rust
+@x x
+
+λx x
+
+λ(fst, snd) snd
+
+λ{x y} x
+```
+
+Lambdas represents anonymous inline functions, it can be written with `λ` or `@` followed by a pattern and a term.
+
+A tuple or duplication pattern is equivalent to a lambda followed by a `let`.
+
+```rust
+λ(fst, snd) snd
+λa let (fst, snd) = a; snd
+
+λ{x y} (x y)
+λa let {x y} = a; (x y)
+```
+
+### Unscoped Variables
+
+```rust
+λ$x $x
+```
+
+Like a normal scoped variable, but starts with a `$` sign. Every unscoped variable in a function must have a unique name and must be used exactly once.
+They can be defined anywhere a scoped variable would be defined in a term, like in a lambda or a `let`.
+
+Unscoped variables are not transformed and linearized like normal scoped variables.
+
+Read [using scopeless lambdas](/docs/using-scopeless-lambdas.md) to know more about.
+
+### Application
+
+```rust
+(fun arg_1 arg_2 ... arg_n)
+```
+
+An application is surrounded by `(` `)`, written in lisp style.
+
+> Lambdas have a higher precedence, so `(@x x 1)` and `((@x x) 1)` means the same thing.
+
+### Tuples
+
+```rust
+(1, 2, 3)
+```
+
+A tuple is surrounded by `(` `)`, with the difference that it's elements are separated by `,`.
+
+### Superposition
+
+```rust
+{1 2 3}
+```
+
+A superposition of values is defined using `{` `}` with at least 2 terms inside.
+
+Read [sups and dups](./dups-and-sups.md) to know more.
+
+### Let-bindings
+
+```rust
+let x = (+ 1 2)
+x
+
+let (fst, snd, era) = (1, 2, *);
+(+ fst snd)
+
+let {f1 f2} = λx x;
+(f1 f2)
+
+let $x = (some_fn $x);
+*
+```
+
+> `*` is an eraser term.
+
+A let term uses a pattern, it can be:
+
+- A variable / unscoped variable.
+- A tuple.
+- A superposition.
+
+The let term will expects a binding value followed by a `next` term.
+
+Using `;` is optional.
+
+### Use
+
+```rust
+use x = (+ 2 3)
+(+ x x)
+```
+
+Inline copies of the declared bind, it is equivalent to this code:
+
+```rust
+(+ (+ 2 3) (+ 2 3))
+```
+
+### Switch
+
+```rust
+switch n {
+  0: "zero"
+  1: "one"
+  _: "greater than 1"
+}
+
+switch x = (+ 1 1) {
+  0: 42;
+  _: x-1;
+}
+```
+
+A switch for native numbers, it can hold a name binding if the matching term is not a variable.
+
+The cases need to be typed from `0` to a wildcard `_` in sequence.
+
+In the last case, the predecessor value is available with the name `bound_var-next_num`, where `bound_var` is the variable
+set by the condition and `next_num` is the expected value of the next case. For example, the above example code returns
+`1`, since `x-1` is bound to `(+ 1 1) - 1` and the value of `x` doesn't match any explicit case.
+
+Using `;` is optional.
+
+### Match
+
+```rust
+match opt = (Some "Bend") {
+  Some: opt.value;
+  None: "No name";
+}
+```
+
+A pattern match expression, it can hold a name binding if the matching term is not a variable.
+
+It is possible to use a _wildcard_, a named variable or `*` as default cases.
+
+It is desugared according to the chosen encoding. Read [pattern matching](./pattern-matching.md) to know more.
+
+Using `;` is optional.
+
+### If
+
+```rust
+if condition {
+  ...then
+} else {
+  ...else
+}
+```
+
+A branching expression where `else` is mandatory.
+
+The condition must return a `u24` number, where 0 will run the `else` branch and any other value will return the first one.
+
+It is equivalent to this switch:
+
+```rust
+switch _ = condition {
+  0: else
+  _: then
+}
+```
+
+It is possible to make if-chains using `elif`:
+
+```rust
+if condition1 {
+  0
+} elif condition2 {
+  1
+} elif condition3 {
+  2
+} else {
+  3
+}
+```
+
+### Bend
+
+Bend can be used to create recursive data structures:
+
+```rust
+main =
+  bend x = 0 {
+    when (< x 3):
+      (Tree/Node (fork (+ x 1)) (fork (+ x 1)))
+    else:
+      (Tree/Leaf x)
+  }
+```
+
+Which binds a variable to the return of an inline recursive function.
+The function `fork` is available inside the `when` arm of the `bend` and calls it recursively.
+
+It is possible to pass multiple state variables, which can be initialized:
+
+```rust
+bend x = 0, y = 1 ... {
+  when (condition x y ...):
+    ...
+}
+```
+
+When calling `fork`, the function must receive the same number of arguments as the number of state variables.
+
+It is equivalent to this inline recursive function:
+
+```rust
+bend x y ... =
+  if (condition x y ...) {
+    ...
+    ... (bend x y ...) ...
+  } else {
+    ...
+  }
+```
+
+### Open
+
+```rust
+let x = (Pair 1 2);
+open Pair x;
+(+ x.fst x.snd)
+```
+
+Brings the inner fields of an object into scope. The original variable can still be accessed, but doing so will cause any used fields to be duplicated.
+
+It's equivalent to pattern matching on the value, with the restriction that its type must have only one constructor.
+
+```rust
+let x = (Pair 1 2)
+match x {
+  Pair: (+ x.fst x.snd)
+}
+```
+
+### With block
+
+```rust
+Result/bind (Result/Ok val) nxt = ((undefer nxt) val)
+Result/bind err _nxt = err
+
+div a b = switch b {
+  0: (Result/Err "Div by 0")
+  _: (Result/Ok (/ a b))
+}
+
+rem a b = switch b {
+  0: (Result/Err "Mod by 0")
+  _: (Result/Ok (% a b))
+}
+
+Main = with Result {
+  ask y = (div 3 2);
+  ask x = (rem y 0);
+  x
+}
+```
+
+Receives a type defined with `type` and expects `Result/bind` to be defined as a monadic bind function.
+It should be of type `(Result a) -> (a -> Result b) -> Result b`, like in the example above.
+
+However, the second argument, `nxt`, is actually a deferred call to the continuation, passing any free variables as arguments.
+Therefore, all `bind` functions must call the builtin function `undefer` before using the value of `nxt`, as in the example above.
+This is necessary to ensure that the continuation in recursive monadic functions stays lazy and doesn't expand infinitely.
+
+This is an example of a recursive function that would loop if passing the variable `a` to the recursive call `Result/foo(a, b)` was not deferred:
+
+```python
+Result/foo x y = with Result {
+  ask a = (Result/Ok 1)
+  ask b = if b {
+    (Result/Err x)
+  } else {
+    (Result/Ok y)
+  }
+  (Result/foo a b)
+}
+```
+
+Inside a `with` block, you can use `ask`, to access the continuation value of the monadic operation.
+
+```rust
+ask y = (div 3 2)
+ask x = (rem y 0)
+x
+
+# Becomes
+(Result/bind (div 3 2) λy (Result/bind (rem y 0) λx x))
+```
+
+It can be used to force a sequence of operations. Since the continuation receives the result through a lambda, it is only fully evaluated after something is applied to it.
+
+The name `wrap` is bound inside a `with` block as a shorthand for `Type/wrap`,
+the equivalent as a `pure` function in other functional languages:
+
+```rust
+Result/wrap x = (Result/Ok x)
+
+with Result {
+  ask x = (some_operation ...)
+  ask y = (some_operation ...)
+  (wrap (* x y))
+}
+```
+
+### Def
+
+Creates a local function visible in the current block capturing variables:
+
+```rust
+main =
+  let base = 0
+  def aux [] = base
+      aux (List/Cons head tail) = (+ head (aux tail))
+  (aux [1, 2, 3])
+```
+
+### Numbers and operations
+
+Currently, bend supports 3 types of numbers: floats, integers and unsigned integers. All of then are 24 bit sized.
+
+```rust
+f24 = +88.012
+
+i24 = -42
+
+u24 = 42
+```
+
+Currently, the 3 number types cannot be mixed.
+
+| Operation             | Syntax     | Supported Types  |
+| --------------------- | ---------- | ---------------- |
+| Addition              | (+ x y)    | int, float, uint |
+| Subtraction           | (- x y)    | int, float, uint |
+| Multiplication        | (\* x y)   | int, float, uint |
+| Division              | (/ x y)    | int, float, uint |
+| Remainder             | (% x y)    | int, float, uint |
+| Exponentiation        | (\*\* x y) | float            |
+| Equal                 | (== x y)   | int, float, uint |
+| Not Equal             | (!= x y)   | int, float, uint |
+| Less Than             | (< x y)    | int, float, uint |
+| Greater Than          | (> x y)    | int, float, uint |
+| Less Than or Equal    | (<= x y)   | int, float, uint |
+| Greater Than or Equal | (>= x y)   | int, float, uint |
+| Bitwise And           | (& x y)    | int, uint        |
+| Bitwise Or            | (\| x y)   | int, uint        |
+| Bitwise Xor           | (^ x y)    | int, uint        |
+| Bitwise Right Shift   | (>> x y)   | uint             |
+| Bitwise Left Shift    | (<< x y)   | uint             |
+
+Hexadecimal and binary floating-point literals are also supported.
+
+In these representations, each digit after the point is divided according to the base’s power of the digit's position.
+Specifically, for hexadecimal floating-point numbers, each place after the dot represents a fraction of 16 to the negative power of the digit's depth.
+Similarly, for binary floating-point numbers, each place after the dot represents a fraction of 2 to the negative power of the digit's depth.
+
+```python
+(== 0xA.A 10.625)
+
+(== 0b111.111 7.875)
+```
+
+### Character Literal
+
+```rust
+'a'
+```
+
+A Character is surrounded with `'`. Accepts unicode characters, unicode escapes in the form '\u{hex value}' and is desugared to the unicode codepoint as an `u24`.
+
+Only supports unicode codepoints up to `0xFFFFFF`.
+
+### Symbol Literal
+
+```python
+# Becomes 2146 (33 << 6 + 34)
+`hi`
+```
+
+A Symbol encodes a up to 4 base64 characters as a `u24` number. It is surrounded by `\``.
+
+Empty characters are interpreted as `A` which has value 0, meaning that `B` is the same as `AAAB`.
+
+### String Literal
+
+```rust
+"Hello"
+```
+
+A String literal is surrounded with `"`. Accepts the same values as characters literals.
+
+The syntax above is desugared to:
+
+```
+(String.cons 'H' (String.cons 'e' (String.cons 'l' (String.cons 'l' (String.cons 'o' String.nil)))))
+```
+
+### List Literal
+
+```rust
+[1, 2, 3 4]
+```
+
+The syntax above is desugared to:
+
+```
+(List.cons 1 (List.cons 2 (List.cons 3 (List.cons 4 List.nil))))
+```
+
+Using `,` is optional.
+
+### Tree Literals
+
+```python
+![![1, 2], ![3, 4]]
+```
+
+The Tree literals `![]` and `!` are used to create values of the built-in type `Tree`.
+
+`![a b]` is equivalent to `Tree/Node(a, b)`.
+
+`!x` is equivalent to `Tree/Leaf(x)`.
+
+### Nat Literal
+
+```rust
+#3
+```
+
+The syntax above is desugared to:
+
+```
+(Nat/succ (Nat/succ (Nat/succ Nat/zero)))
+```
+
+# Native HVM definitions
+
+```py
+# This function causes two ports to be linked and returns *.
+# This can be used to interpret a lambda as an application and apply something to it for example.
+# It can be used like this: `let * = (link_ports @x x y)`
+hvm link_ports:
+  (a (b *))
+  & (c a) ~ (d e)
+  & (e b) ~ (d c)
+
+# Casts a `u24` to itself.
+# We can give type annotations to HVM definitions.
+hvm u24_to_u24 -> (u24 -> u24):
+  ($([u24] ret) ret)
+```
+
+It's also possible to define functions using HVM syntax. This can be
+thought of as a way to write "HVM assembly" directly in a Bend program.
+You can find the reference of this syntax in the [HVM paper](https://github.com/HigherOrderCO/HVM/blob/main/paper/PAPER.pdf).
+
+This is meant for writing things that would otherwise be hard or
+impossible to write in normal Bend syntax.
+
+It will also ignore all term-level compiler passes and so can be
+useful for writing programs with exact behaviour that won't ever be
+changed or optimized by the compiler.
+
+<div id="import-syntax"></div>
+
+# Import Syntax
+
+### Import Relative to the File
+
+Paths starting with `./` or `../` are imported relative to the file.
+
+### Import Relative to the Main Folder
+
+Paths that do not start with `./` or `../` are relative to the folder of the main file.
+
+## Syntax
+
+### Import Specific Names from a File, or Files from a Folder
+
+```py
+from path import name
+from path import (name1, name2)
+import (path/name1, path/name2)
+```
+
+### Import All Names from a File, or All Files from a Folder
+
+```py
+from path import *
+```
+
+### Aliasing Imports
+
+```py
+from path import name as alias
+from path import (name1 as Alias1, name2 as Alias2)
+import path as alias
+import (path/name1 as Alias1, path/name2 as Alias2)
+```
+
+<div id="comments"></div>
+
+# Comments
+
+## Syntax
+
+### Single Line Comment
+
+Use `#` to indicate a single line comment.
+
+```py
+# Single line comment
+
+def main():
+  # return 0
+```
+
+### Multi Line Comment
+
+Use `#{ ... #}` to indicate a multi-line comment.
+
+Multi-line commenting should also be used to document code.
+
+```py
+#{
+  Expects two arguments to be passed.
+
+  This function always returns the second value that was used as argument.
+#}
+def second(x, y):
+  return y
+```
+
+<div id="imp-type-syntax"></div>
+
+# Imp Type Syntax
+
+## Variable
+
+Any name represents a type variable.
+
+Used in generic or polymorphic type definitions.
+
+```python
+# T is a type variable
+type Option(T):
+  Some { value: T }
+  None
+
+# A is a type variable
+def id(x: A) -> A:
+  return x
+```
+
+## Constructor
+
+`Ctr(...)` represents a constructor type.
+
+Used for defining custom data types or algebraic data types.
+Can contain other types as parameters.
+
+```python
+def head(list: List(T)) -> Option(T)
+  match list:
+    case List/Nil:
+      return Option/None
+    case List/Cons:
+      return Option/Some(list.head)
+```
+
+## Any
+
+`Any` represents the untyped type.
+
+It accepts values of alls type and will forcefully cast any type to `Any`.
+
+Can be used for values that can't be statically typed, either because
+they are unknown (like in raw IO calls), because they contain untypable
+expressions (like unscoped variables), or because the expression cannot
+be typed with the current type system (like the self application `lambda x: x(x)`).
+
+```python
+def main -> Any:
+  return 24
+```
+
+## None
+
+`None` represents the eraser `*` or absence of a value.
+
+Often used to indicate that a function doesn't return anything.
+
+```python
+def none -> None:
+  return *
+```
+
+## Hole
+
+`_` represents a hole type.
+
+This will let the type checker infer the most general type for an argument or return value.
+
+```python
+def increment(x: _) -> _:
+  return x + 1
+```
+
+## u24
+
+`u24` represents an unsigned 24-bit integer.
+
+```python
+def zero -> u24:
+  return 0
+```
+
+## i24
+
+`i24` represents a signed 24-bit integer.
+
+```python
+def random_integer -> i24:
+  return -42
+```
+
+## f24
+
+`f24` represents a 24-bit floating-point number.
+
+```python
+def PI -> f24:
+  return 3.14
+```
+
+## Tuple
+
+`(_, _, ...)` represents a tuple type.
+
+Can contain two or more types separated by commas.
+
+```python
+def make_tuple(fst: A, snd: B) -> (A, B):
+  return (fst, snd)
+```
+
+## Function
+
+`a -> b` represents a function type.
+
+`a` is the input type, and `b` is the output type.
+
+```python
+def apply(f: A -> B, arg: A) -> B:
+  return f(arg)
+```
+
+<div id="fun-type-syntax"></div>
+
+# Fun Type Syntax
+
+## Variable
+
+Any name represents a type variable.
+
+Used in generic or polymorphic type definitions.
+
+```python
+# T is a type variable
+type (Option T)
+  = (Some T)
+  | None
+
+# A is a type variable
+id : A -> A
+id x = x
+```
+
+## Constructor
+
+`(Ctr ...)` represents a constructor type.
+
+Used for defining custom data types or algebraic data types.
+Can contain other types as parameters.
+
+```python
+head : (List T) -> (Option T)
+head [] = Option/None
+head (List/Cons head _) = (Option/Some head)
+```
+
+## Any
+
+`Any` represents the untyped type.
+
+It accepts values of alls type and will forcefully cast any type to `Any`.
+
+Can be used for values that can't be statically typed, either because
+they are unknown (like in raw IO calls), because they contain untypable
+expressions (like unscoped variables), or because the expression cannot
+be typed with the current type system (like the self application `λx (x x)`).
+
+```python
+main : Any
+main = @x x
+```
+
+## None
+
+`None` represents the eraser `*` or absence of a value.
+
+Often used to indicate that a function doesn't return anything.
+
+```python
+none : None
+none = *
+```
+
+## Hole
+
+`_` represents a hole type.
+
+This will let the type checker infer the most general type for an argument or return value.
+
+```python
+increment : _ -> _
+increment x = (+ x 1)
+```
+
+## u24
+
+`u24` represents an unsigned 24-bit integer.
+
+```python
+zero : u24
+zero = 0
+```
+
+## i24
+
+`i24` represents a signed 24-bit integer.
+
+```python
+random_integer : i24
+random_integer = -24
+```
+
+## f24
+
+`f24` represents a 24-bit floating-point number.
+
+```python
+PI : f24
+PI = 3.14
+```
+
+## Tuple
+
+`(_, _, ...)` represents a tuple type.
+
+Can contain two or more types separated by commas.
+
+```python
+make_tuple : A -> B -> (A, B)
+make_tuple fst snd = (fst, snd)
+```
+
+## Function
+
+`a -> b` represents a function type.
+
+`a` is the input type, and `b` is the output type.
+
+```python
+apply : (A -> B) -> A -> B
+apply f arg = (f arg)
+```
+
+
+################################################################################
+
+# type-checking.md
+
+# Type Checking
+
+Bend has a type checker with optional typing support based on a Hindley Milner type system.
+
+Programs can be optionally typed using the respective imp or fun type syntax. Type checking is
+enabled by default, but can be toggled with the `-Otype-check` and `-Ono-type-check` options.
+
+Every function can be annotated with a type for its arguments and return value.
+The type checker will infer the type of the function and then compare if it's compatible with the annotated type.
+
+```python
+def add(x: u24, y: u24) -> u24:
+  return x + y
+
+# Arguments or return value without annotation are considered `Any`.
+# They will be accepted by any function, regardless of being correct or not.
+def push(list: List(T), value) -> List(T):
+  match list:
+    case List/Nil:
+      return List/Cons(value, List/Nil)
+    case List/Cons:
+      return List/Cons(list.head, push(list.tail, value))
+
+# Error, List(T) must only receive values of type `T`.
+def append_num(list: List(T), num: u24) -> List(T):
+  return List/Cons(num, list)
+
+# Error, Tree(T) can only store one type of value.
+def my_tree() -> _:
+  return ![!1, !"a"]
+
+# Error, can't add a `u24` and a `f24`.
+# Bend doesn't have implicit type conversions.
+def add_float(x: u24, y: f24) -> f24:
+  return x + y
+```
+
+Bend comes with the following builtin types:
+
+* `u24`: Unsigned 24-bit integer.
+* `i24`: Signed 24-bit integer.
+* `f24`: Floating point number.
+* `(T1, ..., Tn)`: Tuple with `n` elements of types `T1` to `Tn`.
+* `Any`: Untyped value.
+* `None`: Eraser `*`.
+* `_`: A type that will be inferred by the type checker.
+
+The prelude library also defines some basic types that are used in Bend programs:
+
+* `String`: Text represented as a sequence of Unicode characters.
+* `List(T)`: A list of values of type `T`.
+* `Tree(T)`: A binary tree with values of type `T` at the leaves.
+* `Map(T)`: A map from keys of type `u24` to values of type `T`.
+* `IO(T)`: A monadic IO type that can be used to perform IO operations.
+* `Result(O, E)`: Represents the result of an operation that can either succeed with an `O` or fail with an `E`.
+
+
+Additionally, you can define your own algebraic data types.
+In this case, all the type variables that occur in the constructors must be previously defined.
+
+```python
+type Option(T):
+  Some { value: T }
+  None
+```
+
+All the constructors will be declared with the same type `TypeName(var2, var2, ...)`.
+
+### Enabling and disabling type checking
+
+In some cases we know that dynamically our program will not do something wrong despite not being able to give it the proper type.
+
+We can disable type checking for a specific function by either removing the type annotations or by giving it the `unchecked` keyword:
+
+```python
+# Error, type-checked functions can't contain an unscoped variable.
+def channel(x: u24) -> (u24 -> u24, u24):
+  return (lambda $a: x, $a)
+
+# We can remove the annotations. It won't be type-checked,
+# but its type will be `Any -> Any`.
+def channel(x):
+  return (lambda $a: x, $a)
+
+# Instead, we can use the `unchecked` keyword.
+# The annotated type will be considered the truth, regardless of being correct or not.
+def unchecked channel(x: u24) -> (u24 -> u24, u24):
+  return (lambda $a: x, $a)
+```
+
+The opposite is also possible, we can enable type checking for an unannotated function by using the `checked` keyword before the name of the function in its declaration:
+
+```python
+# Despite the inferred type being `List(T) -> List(T)`, the type checker will consider it as `Any -> Any` because it's not annotated.
+def checked tail(list):
+  match list:
+    case List/Nil:
+      return List/Nil
+    case List/Cons:
+      return list.tail
+
+# Error, can't infer the type of this function, despite having type `Any`.
+# Not typeable by a Hindley-Milner type system.
+checked (scott_concat a b) = (a
+  λh λt λcons λnil (cons h (scott_concat t b))
+  b
+)
+```
+
+We can also disable type checking for the entire program by using the `-Ono-type-check` option.
+
+Native HVM definitions are always unchecked.
+
+```python
+# This function will be given the type `a -> a`.
+hvm native_id -> (a -> a):
+  (x x)
+```
+
+### Limitations
+
+Currently, the following are not supported by the type checker:
+
+- Superpositions (`{a, b}`, the tuple type with duplication semantics, see [Dups and sups](https://github.com/HigherOrderCO/Bend/blob/main/docs/dups-and-sups.md)).
+- Unscoped variables and variable binds (`$a`, `let $a = ...`, see [Scopeless lambdas](https://github.com/HigherOrderCO/Bend/blob/main/docs/using-scopeless-lambdas.md)).
+- Expressions not typeable by a Hindley-Milner type system (e.g. self application `λx: x(x)`).
+
+Additionally, the builtin types `Number` and `Integer` can't be used directly in type annotations. They are used internally by the type checker to handle numeric expressions.
+
+```python
+# The inferred type will be `Number(a) -> Number(a) -> Number(a)`.
+def add(x: _, y: _) -> _:
+  return x + y
+
+# The inferred type will be `Integer(a) -> Integer(a) -> Integer(a)`.
+def shift(x: _, n: _) -> _:
+  return x << n
+```
+
+
+################################################################################
+
+# using-scopeless-lambdas.md
+
+# Using scopeless lambdas
+
+Scopeless lambdas are very powerful lambdas that are a side-effect of HVM's internal representation for lambda terms.
+
+Scopeless lambdas are lambdas that have no scope. The variables bound by them can be used outside the lambda's body. They can be created by prefixing a dollar symbol (`$`) to a lambda's variable name.
+
+```py
+λ$x $x # The identity function as a scopeless lambda
+```
+
+Of course, using scopeless lambdas as a replacement for regular lambdas is kind of pointless. Their real power comes from being able to use the bound variable outside the body:
+
+```py
+main = (((λ$x 1) 2), $x)
+# $x gets replaced by 2 and the application ((λ$x 1) 2) gets replaced by 1
+# Outputs (1, 2)
+```
+
+Take some time to think about the program above. It is valid, despite `$x` being used outside the lambda's body.
+
+However, scopeless lambdas don't bind across definitions.
+```py
+def = $x
+
+main = (((λ$x 1) 2), def)
+```
+
+The bound variables are local to each term.
+
+## Duplicating scopeless lambdas
+
+We have seen that the variable bound to a scopeless lambda gets set when the lambda is called. But, what happens if we never call `λ$x 1`? What will `$x` get set to then? Here is a program that does that:
+
+```py
+main =
+	let _ = λ$x 1 # Discard and erase the scopeless lambda
+	(2, $x)
+
+# Outputs (2, *)
+```
+
+The program outputs `2` as the first item of the tuple, as expected. But the second item is `*`! What is `*`?
+
+`*` (called ERA or eraser) is a special term HVM uses when a value was erased. This is what happened to `$x`. We erased `λ$x 1` when we discarded it, which led to `$x` being erased.
+
+What happens if we call `λ$x 1` with two different values instead? 
+
+Try to answer this with your knowledge of HVM. Will it throw a runtime error? Will it return something unexpected?
+
+```py
+main =
+	let f = λ$x 1 # Assign the lambda to a variable
+	((f 2), ((f 3), $x)) # Return a tuple of (f 2) and another tuple.
+
+# Outputs (1, (1, {#0 3 2}))
+```
+
+What? This is even more confusing. The first two values are `1`, as expected. But what about the last term?
+
+The last term in the tuple is a **superposition** of two values. A [superposition](dups-and-sups.md) is the "other side" of a duplication. It is created here because we implicitly duplicated `f` when we used it twice, and duplicating lambdas creates superpositions.
+
+## Usage
+
+Now that we know how scopeless lambdas work, we can make programs using them. An example of a function that is usually thought as "primitive", but can be implemented using scopeless lambdas is [call/cc](http://www.madore.org/~david/computers/callcc.html)
+
+Call/cc is a function that takes a function that takes a parameter `k`. When `k` is called with an argument, `callcc` returns it.
+
+```py
+# Function that discards its second argument
+Seq a b = a
+
+# Create a program capable of using `callcc`
+CC.lang = λprogram
+  let callcc  = λcallback (λ$garbage($hole) (callback λ$hole(0)));
+  let result  = (program callcc);
+  (Seq result $garbage)
+
+Main = (CC.lang λcallcc 
+  # This code calls `callcc`, then calls `k` to fill the hole with `42`. This means that the call to callcc returns `42`, and the program returns `52`. (+ (k 42) 1729) is garbage and is erased.
+  (+ 10 (callcc λk(+ (k 42) 1729)))
+)
+```
+
+################################################################################
+
+# writing-fusing-functions.md
+
+# Writing fusing functions
+## Church encoding
+Church Encoding is a way to encode common datatypes as λ-calculus terms. For example, here is a [Church-encoded](https://en.wikipedia.org/wiki/Church_encoding) boolean type in HVM
+```py
+true = λt λf t
+false = λt λf f
+```
+Matching on values of this representation is simply calling the boolean value with what the function should return if the boolean is true and if the boolean is false.
+```py
+if boolean case_true case_false = (boolean case_true case_false)
+main = (if true 42 37)
+# Outputs 42
+
+# Or alternatively:
+# if boolean = boolean
+# Each boolean is represented by its own matching function
+# so (true 42 37) will do the same thing.
+```
+
+This is how a `Not` function that acts on this encoding can be defined:
+```py
+not = λboolean (boolean false true)
+main = (not true) # Outputs λtλf f.
+main = (not false) # Outputs λtλf t.
+```
+If the boolean is `true`, then the function will return `false`. If it is `false`, it will return `true`.
+
+## Self-application
+
+What happens if we self-compose the `not` function? It is a well known fact that`(not (not x)) == x`, so we should expect something that behaves like the identity function.
+```py
+main = λx (not (not x))
+# Output:
+# λa (a λ* λb b λc λ* c λ* λd d λe λ* e)
+```
+The self-application of `not` outputs a large term. Testing will show that the term does indeed behave like an identity function. However, since the self-application of `not` is larger than `not` itself, if we self-compose this function many times, our program will get really slow and eat up a lot of memory, despite all functions being equivalent to the identity function:
+```py
+main = λx (not (not x)) # Long
+main = λx (not (not (not (not x)))) # Longer
+main = λx (not (not (not (not (not (not (not (not x)))))))) # Longer
+# etc...
+```
+The self-application of not a large number of times, such as 65536 or 4294967296, will be large enough to slow down our computer by a significant amount.
+
+Luckily, there's a trick we can do to make the self-application of `not` much shorter. The trick is to rewrite `not` in another way that makes the self-composition of `not` much smaller. This trick is called "fusing". Here is how it's done.
+
+### Fusing functions
+Let's first take our initial `not` implementation.
+```py
+not = λboolean (boolean false true)
+```
+We begin by replacing `false` and `true` by their values.
+```py
+not = λboolean (boolean λtλf(f) λtλf(t))
+```
+After doing this, it's easy to notice that there's something that both terms have in common. Both of them are lambdas that take in two arguments. We can **lift** the lambda arguments up and make them **shared** between both cases.
+```py
+not = λboolean λt λf (boolean f t)
+```
+Let's see how the self-application of `not` gets reduced now. Each line will be a step in the reduction.
+```py
+main = λx (not (not x))
+main = λx (not (λbooleanλtλf (boolean f t) x))
+main = λx (not (λtλf (boolean x f t)))
+main = λx (λboolean1λt1λf1 (boolean1 f1 t1) (λtλf (boolean x f t)))
+main = λxλt1λf1 (λtλf (x f t) f1 t1)
+main = λxλt1λf1 (λf (x f f1) t1))
+main = λxλt1λf1 (x t1 f1)
+```
+Wow! Simply by replacing lambda arguments with the values applied to them, we were able to make `(not (not x))` not grow in size. This is what fusing means, and it's a really powerful tool to make programs faster.
+
+Fusing isn't only for Church-encoded `not`. Fusing can be done anywhere where efficient composition is important. What we simply have to do is "lift" lambdas up, and make the arguments "shared" between all cases.
+
+## Preventing duplication
+
+Something else that is important when writing fusing functions is linearizing variables to prevent useless duplication.
+
+Consider the [scott-encoded](https://crypto.stanford.edu/~blynn/compiler/scott.html) type `Nat`:
+
+```py
+zero = λs λz z # 0 as a scott-encoded number
+succ = λpred λs λz (s pred) # Creates a Scott number out of its predecessor
+
+two = (succ (succ zero)) # λs λz (s λs λz (s λs λz z))
+```
+
+We can write an addition function for this type, that adds two numbers
+
+```py
+add = λa λb
+	let case_succ = λa_pred (succ (add a_pred b)) # If a = p+1, then return (p+b)+1
+	let case_zero = b # If the `a = 0`, return `b`
+	(a case_succ case_zero)
+```
+
+This code seems fine, but it has a problem that makes it suboptimal. There is an implicit [duplication](dups-and-sups.md) here:
+
+```rs
+add = λa λb
+	let {b1 b2} = b;
+	let case_succ = λa_pred (succ (add a_pred b0))
+	let case_zero = b1
+	(a case_succ case_zero)
+```
+
+However, only one of the two duplicated values is ever used. The other one is discarded. This means that this duplication is completely useless! It makes this function suboptimal. In fact, as of commit `ebd469`, it will hang HVM, because it's recursive and HVM2 is eager.
+
+The correct way to define this function is this, which pushes the duplicating lambdas down, and removes the duplication:
+
+```rs
+fusing_add = λa
+	let case_succ = λa_pred λb (succ (fusing_add a_pred b))
+	let case_zero = λb b
+	(a case_succ case_zero)
+```
+
+This function is fusing on `a`, which means that `λx (fusing_add two x)` will have a small normal form (but `λx (fusing_add x two)` won't).
+
+Broadly speaking, a good rule of thumb in HVM is **push linear lambdas to the top and duplicating lambdas to the bottom**.
+
+## Example
+
+To show the power of fusing, here is a program that self-composes `fusing_not` 2^24 times and prints the result.
+Currently hvm is not able to handle operations between church numbers so we explicitly convert the native number to a church number in this example (which is very slow).
+
+This program uses [native numbers, which are described here](native-numbers.md).
+```py
+true = λt λf t
+false = λt λf f
+
+not = λboolean (boolean false true)
+
+fusing_not = λboolean λt λf (boolean f t)
+
+# Creates a Church numeral out of a native number
+to_church n = switch n {
+	0: λf λx x
+	_: λf λx (f (to_church n-1 f x))
+}
+
+main =
+	((to_church 0xFFFFFF) fusing_not)  # try replacing this by regular not. Will it still work?
+```
+Here is the program's output:
+```bash
+$ bend norm -s fuse_magic.hvm
+Result: λa λb λc (a c b)
+- ITRS: 285212661
+- TIME: 5.67s
+- MIPS: 50.28
+```
+A lot of rewrites, but most of those are just to create the church number.
+
+
+################################################################################
+
