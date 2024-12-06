@@ -42,3 +42,56 @@ parser = Parser(tokens, only_results=True) # mostrar apenas o resultado se foi a
 ├── syntax_parser.py
 └── Trabalho teórico-prático - Análise sintática ascendente - 2ª avaliação.pdf
 ```
+
+### /03_transpilador
+
+Transpilador de Código Fonte Python para Bend
+
+#### O que é Bend?
+- Bend é uma linguagem de programação de alto nível brasileira com lançamento em 2024
+- Bend tem como maior atrativo o fato de ser executada na placa de vídeo e não na memória RAM
+- Bend tem suporte a processos paralelos usando GPUs e pode usar núcleos CUDA para extrair ainda mais performance
+
+veja mais sobre: [https://github.com/HigherOrderCO/Bend](https://github.com/HigherOrderCO/Bend)
+
+#### requirements
+- install rust and gcc
+    ```bash
+    # rust
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+    #gcc
+    sudo apt install gcc # derivados de Debian
+    sudo pacman -S # derivados de Arch
+    ```
+
+- install hvm2
+    ```
+    # HVM2 é a ferramente de avaliação de interação combinatória paralela do HOC
+    cargo install hvm
+
+    # Verifica que o hvm está instalado e sua versão
+    hvm --version
+    ``` 
+
+- install Bend lang
+    ```bash
+    # Instalação da linguagem Bend
+    cargo install bend-lang
+
+    # Verifica que está instalado e sua versão
+    bend --version
+    ```
+
+#### como rodar o Bend?
+- É recomendado rodar o bend com C ou com CUDA (se tiver gpu Nvidia) para extrair a maior performance possível
+- A maior performance do programa é usando núcleos CUDA
+```bash
+- bend run    <file.bend> # usa o interpretador C por padrão (em paralelo)
+- bend run-rs <file.bend> # usa o interpretador Rust (em sequencial)
+- bend run-c  <file.bend> # usa o interpretador C (em paralelo)
+- bend run-cu <file.bend> # usa o interpretador CUDA (massivamente em paralelo)
+- bend run-rs <file.bend> -s # adicione o "-s" no comando para rodar o código sequencialmente
+```
+
+
