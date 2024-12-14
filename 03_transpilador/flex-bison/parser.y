@@ -12,6 +12,24 @@ int yylex(void);
 void yyerror(const char *msg) {
     fprintf(stderr, "Erro: %s na linha %d. Caractere problemático: '%s'\n", msg, yylineno, yytext);
 }
+
+int indent_level = 4; // Nível de indentação
+
+void increase_indent() {
+    indent_level++;
+}
+
+void decrease_indent() {
+    if (indent_level > 0) indent_level--;
+}
+
+char* get_indent() {
+    char *spaces = malloc((indent_level * 4) + 1); // 4 espaços por nível
+    memset(spaces, ' ', indent_level * 4);
+    spaces[indent_level * 4] = '\0';
+    return spaces;
+}
+
 %}
 
 %union {
