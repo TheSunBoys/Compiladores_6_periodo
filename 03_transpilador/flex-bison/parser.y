@@ -3,29 +3,34 @@
 #include <stdlib.h>
 #include <string.h>
 #include "parser.h"
+
 extern int yylineno;
+extern char *yytext;
 
 extern FILE *yyin;
 int yylex(void);
 void yyerror(const char *msg) {
-    fprintf(stderr, "Erro: %s na linha %d\n", msg, yylineno);
+    fprintf(stderr, "Erro: %s na linha %d. Caractere problemático: '%s'\n", msg, yylineno, yytext);
 }
 %}
 
 %union {
-    char *str;
+    char *str; // Todas as variáveis do tipo `char*` usam essa entrada
 }
 
 %token <str> INT FLOAT VOID RETURN PRINTF FOR WHILE IF ELSE
 %token <str> ABREP FECHAP ABRECH FECHACH PONTOEVIRG ATRIB MAIS MAISMAIS MENOS VEZES DIVISAO
 %token <str> MENOR MAIOR MENORIGUAL MAIORIGUAL IGUAL DIFERENTE ID NUM STR FIM_LINHA MAIN VIRGULA
 
-%type <str> PROGRAM MAIN_FUNC FUNC FUNC_DECL FUNC_CALL PARAM_LIST COMANDO_LIST COMANDO BLOCO DECLARACAO EXPRESSAO PRINT_FUNC LOOP FOR_LOOP CONDICAO INCREMENTO
+%type <str> PROGRAM MAIN_FUNC FUNC FUNC_DECL FUNC_CALL PARAM_LIST COMANDO_LIST COMANDO BLOCO DECLARACAO EXPRESSAO PRINT_FUNC LOOP FOR_LOOP CONDICAO INCREMENTO TYPE EXPRESSAO_LIST
 
 %left AND OR
 %left MENOR MAIOR MENORIGUAL MAIORIGUAL IGUAL DIFERENTE
 %left MAIS MENOS
 %left VEZES DIVISAO
+
+%precedence ELSE
+%nonassoc IFX
 
 %%
 
@@ -35,6 +40,16 @@ PROGRAM:
         printf("[LOG] PROGRAM -> FUNC_DECL MAIN_FUNC\n");
         $$ = malloc(strlen($1) + strlen($2) + 2);
         sprintf($$, "%s\n%s", $1, $2);
+
+        FILE *output = fopen("output.py", "w");
+        if (!output) {
+            perror("Erro ao abrir o arquivo de saída");
+            exit(1);
+        }
+        fprintf(output, "%s\n", $1);
+        fprintf(output, "%s\n", $2);
+        fclose(output);
+        printf("Transpilação concluída. Código gerado em 'output.py'.\n");
     }
     ;
 
@@ -52,29 +67,41 @@ FUNC_DECL:
     ;
 
 FUNC:
-    INT ID ABREP PARAM_LIST FECHAP ABRECH COMANDO_LIST FECHACH
+    TYPE ID ABREP PARAM_LIST FECHAP ABRECH COMANDO_LIST FECHACH
     {
-        printf("[LOG] FUNC -> int ID (PARAM_LIST) { COMANDO_LIST }\n");
+        printf("[LOG] FUNC -> TYPE ID (PARAM_LIST) { COMANDO_LIST }\n");
         $$ = malloc(strlen($2) + strlen($4) + strlen($7) + 50);
-        sprintf($$, "def %s(%s):\n    %s", $2, $4, $7);
+        sprintf($$, "def %s(%s):\n    %s", $2, $4, $7); // Transforma para Python
+    }
+    ;
+
+TYPE:
+    INT
+    {
+        $$ = strdup("int");
+    }
+    | FLOAT
+    {
+        $$ = strdup("float");
+    }
+    | VOID
+    {
+        $$ = strdup("void");
     }
     ;
 
 PARAM_LIST:
-    /* vazio */
+    TYPE ID
     {
-        $$ = strdup("");
+        printf("[LOG] PARAM_LIST -> TYPE ID\n");
+        $$ = malloc(strlen($1) + strlen($2) + 2);
+        sprintf($$, "%s %s", $1, $2);
     }
-    | PARAM_LIST VIRGULA INT ID
+    | PARAM_LIST VIRGULA TYPE ID
     {
-        printf("[LOG] PARAM_LIST -> PARAM_LIST, INT ID\n");
-        $$ = malloc(strlen($1) + strlen($4) + 5);
-        sprintf($$, "%s, %s", $1, $4);
-    }
-    | INT ID
-    {
-        printf("[LOG] PARAM_LIST -> INT ID\n");
-        $$ = strdup($2);
+        printf("[LOG] PARAM_LIST -> PARAM_LIST, TYPE ID\n");
+        $$ = malloc(strlen($1) + strlen($3) + strlen($4) + 5);
+        sprintf($$, "%s, %s %s", $1, $3, $4);
     }
     ;
 
@@ -116,19 +143,42 @@ COMANDO:
         printf("[LOG] COMANDO -> FUNC_CALL;\n");
         $$ = strdup($1);
     }
-    | STR
+    | IF ABREP CONDICAO FECHAP BLOCO
     {
-        printf("[LOG] COMANDO -> Comentário;\n");
-        $$ = malloc(strlen($1) + 3);
-        sprintf($$, "# %s", $1);
+        printf("[LOG] COMANDO -> if (CONDICAO) BLOCO\n");
+        $$ = malloc(strlen($3) + strlen($5) + 20);
+        sprintf($$, "if (%s):\n%s", $3, $5);
+    }
+    | IF ABREP CONDICAO FECHAP BLOCO ELSE BLOCO
+    {
+        printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else BLOCO\n");
+        $$ = malloc(strlen($3) + strlen($5) + strlen($7) + 30);
+        sprintf($$, "if (%s):\n%s\nelse:\n%s", $3, $5, $7);
+    }
+    | ELSE BLOCO
+    {
+        printf("[LOG] COMANDO -> else BLOCO\n");
+        $$ = malloc(strlen($2) + 10);
+        sprintf($$, "else:\n%s", $2);
+    }
+    | IF ABREP CONDICAO FECHAP BLOCO ELSE COMANDO
+    {
+        printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else COMANDO\n");
+        $$ = malloc(strlen($3) + strlen($5) + strlen($7) + 30);
+        sprintf($$, "if (%s):\n%s\nelse:\n%s", $3, $5, $7);
     }
     ;
 
-
 FUNC_CALL:
-    ID ABREP PARAM_LIST FECHAP
+    ID ABREP FECHAP
     {
-        printf("[LOG] FUNC_CALL -> ID(PARAM_LIST)\n");
+        printf("[LOG] FUNC_CALL -> ID()\n");
+        $$ = malloc(strlen($1) + 3);
+        sprintf($$, "%s()", $1);
+    }
+    | ID ABREP EXPRESSAO_LIST FECHAP
+    {
+        printf("[LOG] FUNC_CALL -> ID(EXPRESSAO_LIST)\n");
         $$ = malloc(strlen($1) + strlen($3) + 5);
         sprintf($$, "%s(%s)", $1, $3);
     }
@@ -153,11 +203,31 @@ BLOCO:
     ;
 
 PRINT_FUNC:
-    PRINTF ABREP STR FECHAP PONTOEVIRG
+    PRINTF ABREP STR VIRGULA EXPRESSAO FECHAP PONTOEVIRG
+    {
+        printf("[LOG] PRINT_FUNC -> printf(STR, EXPRESSAO);\n");
+        $$ = malloc(strlen($3) + strlen($5) + 20); // $3 e $5 são do tipo `char*` (STRING)
+        sprintf($$, "print(%s, %s)", $3, $5);
+    }
+    | PRINTF ABREP STR FECHAP PONTOEVIRG
     {
         printf("[LOG] PRINT_FUNC -> printf(STR);\n");
         $$ = malloc(strlen($3) + 10);
         sprintf($$, "print(%s)", $3);
+    }
+    ;
+
+EXPRESSAO_LIST:
+    EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO_LIST -> EXPRESSAO\n");
+        $$ = strdup($1);
+    }
+    | EXPRESSAO_LIST VIRGULA EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO_LIST -> EXPRESSAO_LIST, EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 5);
+        sprintf($$, "%s, %s", $1, $3);
     }
     ;
 
@@ -183,6 +253,7 @@ FOR_LOOP:
     }
     ;
 
+
 INCREMENTO:
     ID MAISMAIS
     {
@@ -193,29 +264,115 @@ INCREMENTO:
     ;
 
 CONDICAO:
-    EXPRESSAO MENOR EXPRESSAO
+    EXPRESSAO
+    {
+        printf("[LOG] CONDICAO -> EXPRESSAO\n");
+        $$ = strdup($1);
+    }
+    | CONDICAO AND CONDICAO
+    {
+        printf("[LOG] CONDICAO -> CONDICAO AND CONDICAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 6);
+        sprintf($$, "%s and %s", $1, $3);
+    }
+    | CONDICAO OR CONDICAO
+    {
+        printf("[LOG] CONDICAO -> CONDICAO OR CONDICAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 5);
+        sprintf($$, "%s or %s", $1, $3);
+    }
+    | EXPRESSAO IGUAL EXPRESSAO
+    {
+        printf("[LOG] CONDICAO -> EXPRESSAO == EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 5);
+        sprintf($$, "%s == %s", $1, $3);
+    }
+    | EXPRESSAO DIFERENTE EXPRESSAO
+    {
+        printf("[LOG] CONDICAO -> EXPRESSAO != EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 5);
+        sprintf($$, "%s != %s", $1, $3);
+    }
+    | EXPRESSAO MENOR EXPRESSAO
     {
         printf("[LOG] CONDICAO -> EXPRESSAO < EXPRESSAO\n");
         $$ = malloc(strlen($1) + strlen($3) + 4);
         sprintf($$, "%s < %s", $1, $3);
+    }
+    | EXPRESSAO MAIOR EXPRESSAO
+    {
+        printf("[LOG] CONDICAO -> EXPRESSAO > EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 4);
+        sprintf($$, "%s > %s", $1, $3);
     }
     ;
 
 EXPRESSAO:
     ID
     {
+        printf("[LOG] EXPRESSAO -> ID\n");
         $$ = strdup($1);
     }
     | NUM
     {
+        printf("[LOG] EXPRESSAO -> NUM\n");
         $$ = strdup($1);
     }
-    | ID MAIS NUM
+    | FUNC_CALL
     {
+        printf("[LOG] EXPRESSAO -> FUNC_CALL\n");
+        $$ = strdup($1); // FUNC_CALL retorna uma string
+    }
+    | EXPRESSAO MAIS EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO -> EXPRESSAO + EXPRESSAO\n");
         $$ = malloc(strlen($1) + strlen($3) + 4);
         sprintf($$, "%s + %s", $1, $3);
     }
+    | EXPRESSAO MENOS EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO -> EXPRESSAO - EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 4);
+        sprintf($$, "%s - %s", $1, $3);
+    }
+    | EXPRESSAO VEZES EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO -> EXPRESSAO * EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 4);
+        sprintf($$, "%s * %s", $1, $3);
+    }
+    | EXPRESSAO DIVISAO EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO -> EXPRESSAO / EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 4);
+        sprintf($$, "%s / %s", $1, $3);
+    }
+    | EXPRESSAO IGUAL EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO -> EXPRESSAO == EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 5);
+        sprintf($$, "%s == %s", $1, $3);
+    }
+    | EXPRESSAO DIFERENTE EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO -> EXPRESSAO != EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 5);
+        sprintf($$, "%s != %s", $1, $3);
+    }
+    | EXPRESSAO MENOR EXPRESSAO
+    {
+        printf("[LOG] CONDICAO -> EXPRESSAO < EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 4);
+        sprintf($$, "%s < %s", $1, $3);
+    }
+    | EXPRESSAO MAIOR EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO -> EXPRESSAO > EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 4);
+        sprintf($$, "%s > %s", $1, $3);
+    }
     ;
+
 
 %%
 

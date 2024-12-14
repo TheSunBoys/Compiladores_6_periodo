@@ -13,30 +13,34 @@ BRANCO [ \t]
 ESPACO {BRANCO}+
 DIGITO [0-9]
 NUMERO {DIGITO}+
-LETRA [A-Za-z]
-IDENTIFICADOR {LETRA}({LETRA}|{DIGITO})*
+LETRA [A-Za-z_]
+
+IDENTIFICADOR [A-Za-z_][A-Za-z0-9_]*
 
 %%
+[ \n]+ { 
+    printf("[LOG] Ignorando quebra de linha ou espaço em branco: %s na [linha: %d]\n", yytext, yylineno); 
+}
+
 "#include".* { 
-    printf("[LOG] Ignorando linha de inclusão: %s [na linha %d]\n", yytext, yylineno); 
-    /* Ignorar linhas de inclusão e não retornar token */ 
+    printf("[LOG] Ignorando linha de importação de libs: %s [na linha %d]\n", yytext, yylineno); 
+    /* Ignorar linhas de importação de libs e não retornar token */ 
 }
 
 "//".* { 
-    yylval.str = strdup(yytext + 2); // Ignorar "//" e pegar o texto
-    printf("[LOG] Comentário de linha detectado: %s [na linha: %d]\n", yylval.str, yylineno);
-    return STR;
+    printf("[LOG] Ignorando comentário de linha: %s [na linha: %d]\n", yytext, yylineno);
+    /* Ignora o comentário */
 }
 
 "/\\*".*"\\*/" {
-    yylval.str = strdup(yytext + 2); // Ignorar "/*" no início
-    yylval.str[strlen(yylval.str) - 2] = '\0'; // Remover "*/" no final
-    printf("[LOG] Comentário de bloco detectado: %s [na linha: %d]\n", yylval.str, yylineno);
-    return STR;
+    printf("[LOG] Ignorando comentário de bloco: %s [na linha: %d]\n", yytext, yylineno);
+    /* Ignora o comentário */
 }
 
-[ \n]+ { 
-    printf("[LOG] Ignorando quebra de linha ou espaço em branco: %s na [linha: %d]\n", yytext, yylineno); 
+\"([^"\\]|\\.)*\" {
+    printf("[LOG] String detectada: %s [na linha %d]\n", yytext, yylineno);
+    yylval.str = strdup(yytext); // Copiar a string completa
+    return STR; // Retornar token STR
 }
 
 "main"          { return MAIN; }
@@ -54,6 +58,7 @@ IDENTIFICADOR {LETRA}({LETRA}|{DIGITO})*
 "{"             { return ABRECH; }
 "}"             { return FECHACH; }
 ";"             { return PONTOEVIRG; }
+","             { return VIRGULA; }
 "="             { return ATRIB; }
 "+"             { return MAIS; }
 "++"            { return MAISMAIS; }
@@ -66,6 +71,8 @@ IDENTIFICADOR {LETRA}({LETRA}|{DIGITO})*
 ">="            { return MAIORIGUAL; }
 "=="            { return IGUAL; }
 "!="            { return DIFERENTE; }
+"&&" { return AND; }
+"||" { return OR; }
 
 {IDENTIFICADOR} {
     printf("[LOG] Identificador detectado: %s [na linha %d]\n", yytext, yylineno);
