@@ -18,11 +18,27 @@ IDENTIFICADOR {LETRA}({LETRA}|{DIGITO})*
 
 %%
 "#include".* { 
-    printf("[LOG] Ignorando linha de inclusão: %s\n", yytext); 
-    // Ignora a linha inteira que começa com #include e não retorna tokens
+    printf("[LOG] Ignorando linha de inclusão: %s [na linha %d]\n", yytext, yylineno); 
+    /* Ignorar linhas de inclusão e não retornar token */ 
 }
 
-[ \n]+        ;  // Ignora espaços em branco e quebras de linha
+"//".* { 
+    yylval.str = strdup(yytext + 2); // Ignorar "//" e pegar o texto
+    printf("[LOG] Comentário de linha detectado: %s [na linha: %d]\n", yylval.str, yylineno);
+    return STR;
+}
+
+"/\\*".*"\\*/" {
+    yylval.str = strdup(yytext + 2); // Ignorar "/*" no início
+    yylval.str[strlen(yylval.str) - 2] = '\0'; // Remover "*/" no final
+    printf("[LOG] Comentário de bloco detectado: %s [na linha: %d]\n", yylval.str, yylineno);
+    return STR;
+}
+
+[ \n]+ { 
+    printf("[LOG] Ignorando quebra de linha ou espaço em branco: %s na [linha: %d]\n", yytext, yylineno); 
+}
+
 "main"          { return MAIN; }
 "int"           { return INT; }
 "float"         { return FLOAT; }
@@ -51,10 +67,21 @@ IDENTIFICADOR {LETRA}({LETRA}|{DIGITO})*
 "=="            { return IGUAL; }
 "!="            { return DIFERENTE; }
 
-{IDENTIFICADOR} { yylval.str = strdup(yytext); return ID; }
-{NUMERO}        { yylval.str = strdup(yytext); return NUM; }
+{IDENTIFICADOR} {
+    printf("[LOG] Identificador detectado: %s [na linha %d]\n", yytext, yylineno);
+    yylval.str = strdup(yytext);
+    return ID;
+}
 
-[ \t]+          ;  // Ignorar espaços em branco
-\n              ;  // Ignorar quebras de linha
-.               { printf("[ERRO] Caractere desconhecido na linha %d: %s\n", yylineno, yytext); }
+{NUMERO} {
+    printf("[LOG] Número detectado: %s [na linha %d]\n", yytext, yylineno);
+    yylval.str = strdup(yytext);
+    return NUM;
+}
+
+\n {
+    printf("[LOG] Quebra de linha detectada [na linha %d]\n", yylineno);
+}
+
+.               { printf("[ERRO] Caractere desconhecido [na linha %d]: %s\n", yylineno, yytext); }
 %%
