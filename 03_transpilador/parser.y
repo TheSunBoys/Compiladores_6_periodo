@@ -56,18 +56,16 @@ PROGRAM:
     FUNC_DECL MAIN_FUNC
     {
         printf("[LOG] PROGRAM -> FUNC_DECL MAIN_FUNC\n");
-        char output[4096];
-        snprintf(output, sizeof(output), "%s\n%s", $1, $2);
 
-        FILE *file = fopen("output.py", "w");
-        if (!file) {
+        FILE *output = fopen("output.py", "w");
+        if (!output) {
             perror("Erro ao abrir o arquivo de saída");
             exit(1);
         }
-        fprintf(file, "%s\n", $1);
-        fprintf(file, "%s\n", $2);
-        fclose(file);
-        
+
+        fprintf(output, "%s\n%s\n", $1, $2);
+        fclose(output);
+
         printf("Transpilação concluída. Código gerado em 'output.py'.\n");
     }
     ;
@@ -80,9 +78,8 @@ FUNC_DECL:
     | FUNC_DECL FUNC
     {
         printf("[LOG] FUNC_DECL -> FUNC_DECL FUNC\n");
-        char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "%s\n%s", $1, $2);
-        $$ = strdup(buffer);
+        $$ = malloc(strlen($1) + strlen($2) + 2);
+        sprintf($$, "%s\n%s", $1, $2);
     }
     ;
 
@@ -90,9 +87,8 @@ FUNC:
     TYPE ID ABREP PARAM_LIST FECHAP ABRECH COMANDO_LIST FECHACH
     {
         printf("[LOG] FUNC -> TYPE ID (PARAM_LIST) { COMANDO_LIST }\n");
-        char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "def %s(%s):\n    %s", $2, $4, $7);
-        $$ = strdup(buffer);
+        $$ = malloc(strlen($2) + strlen($4) + strlen($7) + 50);
+        sprintf($$, "def %s(%s):\n    %s", $2, $4, $7);
     }
     ;
 
@@ -132,9 +128,8 @@ MAIN_FUNC:
     INT MAIN ABREP FECHAP ABRECH COMANDO_LIST FECHACH
     {
         printf("[LOG] MAIN_FUNC -> INT MAIN () { COMANDO_LIST }\n");
-        char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "if __name__ == \"__main__\":\n    %s", $6);
-        $$ = strdup(buffer);
+        $$ = malloc(strlen($6) + 50);
+        sprintf($$, "if __name__ == \"__main__\":\n    %s", $6);
     }
     ;
 
@@ -147,7 +142,7 @@ COMANDO_LIST:
     {
         printf("[LOG] COMANDO_LIST -> COMANDO_LIST COMANDO\n");
         char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "%s\n    %s", $1, $2);
+        snprintf(buffer, sizeof(buffer), "%s\n        %s", $1, $2);
         $$ = strdup(buffer);
     }
     ;
@@ -160,9 +155,8 @@ COMANDO:
     | RETURN EXPRESSAO PONTOEVIRG
     {
         printf("[LOG] COMANDO -> return EXPRESSAO;\n");
-        char buffer[256];
-        snprintf(buffer, sizeof(buffer), "return %s", $2);
-        $$ = strdup(buffer);
+        $$ = malloc(strlen($2) + 20);
+        sprintf($$, "return %s", $2);
     }
     | FUNC_CALL PONTOEVIRG
     {
@@ -173,27 +167,29 @@ COMANDO:
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO\n");
         char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "if (%s):\n    %s", $3, $5);
+        snprintf(buffer, sizeof(buffer), "if %s:\n        %s", $3, $5);
         $$ = strdup(buffer);
     }
     | IF ABREP CONDICAO FECHAP BLOCO ELSE BLOCO
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else BLOCO\n");
         char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "if (%s):\n    %s\nelse:\n    %s", $3, $5, $7);
+        snprintf(buffer, sizeof(buffer), "if %s:\n        %s\n    else:\n        %s", $3, $5, $7);
         $$ = strdup(buffer);
     }
     | ELSE BLOCO
     {
         printf("[LOG] COMANDO -> else BLOCO\n");
-        $$ = malloc(strlen($2) + 10);
-        sprintf($$, "else:\n%s", $2);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "else:\n        %s", $2);
+        $$ = strdup(buffer);
     }
     | IF ABREP CONDICAO FECHAP BLOCO ELSE COMANDO
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else COMANDO\n");
-        $$ = malloc(strlen($3) + strlen($5) + strlen($7) + 30);
-        sprintf($$, "if (%s):\n%s\nelse:\n%s", $3, $5, $7);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "if %s:\n        %s\n    else:\n        %s", $3, $5, $7);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -280,8 +276,9 @@ FOR_LOOP:
     FOR ABREP DECLARACAO CONDICAO PONTOEVIRG INCREMENTO FECHAP BLOCO
     {
         printf("[LOG] FOR_LOOP -> FOR (DECLARACAO; CONDICAO; INCREMENTO) BLOCO\n");
-        $$ = malloc(strlen($3) + strlen($4) + strlen($6) + strlen($8) + 50);
-        sprintf($$, "for %s in range(%s):\n%s", $3, $4, $8);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "for %s in range(%s):\n        %s", $3, $4, $8);
+        $$ = strdup(buffer);
     }
     ;
 
