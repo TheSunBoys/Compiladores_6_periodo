@@ -56,7 +56,7 @@ depêndencias para rodar:
 
 ```shell
 git clone https://github.com/TheSunBoys/Compiladores_6_periodo.git
-cd 03_transpilador
+cd Compiladores_6_periodo && cd 03_transpilador
 make clean && make
 ./transpiler ex.c
 ```
