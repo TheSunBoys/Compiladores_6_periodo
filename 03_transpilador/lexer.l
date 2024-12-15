@@ -18,27 +18,23 @@ LETRA [A-Za-z_]
 IDENTIFICADOR [A-Za-z_][A-Za-z0-9_]*
 
 %%
-[ \n]+ { 
-    printf("[LOG] Ignorando quebra de linha ou espaço em branco: %s na [linha: %d]\n", yytext, yylineno); 
+[ \n]+ {
+    /* Ignora linhas em branco ou espaços */
 }
 
-"#include".* { 
-    printf("[LOG] Ignorando linha de importação de libs: %s [na linha %d]\n", yytext, yylineno); 
-    /* Ignorar linhas de importação de libs e não retornar token */ 
+"#include".* {
+    /* Ignora linhas de importação de bibliotecas */
 }
 
-"//".* { 
-    printf("[LOG] Ignorando comentário de linha: %s [na linha: %d]\n", yytext, yylineno);
-    /* Ignora o comentário */
+"//".* {
+    /* Ignora comentários de linha */
 }
 
 "/\\*".*"\\*/" {
-    printf("[LOG] Ignorando comentário de bloco: %s [na linha: %d]\n", yytext, yylineno);
-    /* Ignora o comentário */
+    /* Ignora comentários de bloco */
 }
 
 \"([^"\\]|\\.)*\" {
-    printf("[LOG] String detectada: %s [na linha %d]\n", yytext, yylineno);
     yylval.str = strdup(yytext); // Copiar a string completa
     return STR; // Retornar token STR
 }
@@ -50,7 +46,6 @@ IDENTIFICADOR [A-Za-z_][A-Za-z0-9_]*
 "return"        { return RETURN; }
 "printf"        { return PRINTF; }
 "for"           { return FOR; }
-"while"         { return WHILE; }
 "if"            { return IF; }
 "else"          { return ELSE; }
 "("             { return ABREP; }
@@ -71,8 +66,8 @@ IDENTIFICADOR [A-Za-z_][A-Za-z0-9_]*
 ">="            { return MAIORIGUAL; }
 "=="            { return IGUAL; }
 "!="            { return DIFERENTE; }
-"&&" { return AND; }
-"||" { return OR; }
+"&&"            { return AND; }
+"||"            { return OR; }
 
 {IDENTIFICADOR} {
     printf("[LOG] Identificador detectado: %s [na linha %d]\n", yytext, yylineno);

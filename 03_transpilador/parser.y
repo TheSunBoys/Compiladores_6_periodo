@@ -36,9 +36,9 @@ char* get_indent() {
     char *str; // Todas as variáveis do tipo `char*` usam essa entrada
 }
 
-%token <str> INT FLOAT VOID RETURN PRINTF FOR WHILE IF ELSE
+%token <str> INT FLOAT VOID RETURN PRINTF FOR IF ELSE
 %token <str> ABREP FECHAP ABRECH FECHACH PONTOEVIRG ATRIB MAIS MAISMAIS MENOS VEZES DIVISAO
-%token <str> MENOR MAIOR MENORIGUAL MAIORIGUAL IGUAL DIFERENTE ID NUM STR FIM_LINHA MAIN VIRGULA
+%token <str> MENOR MAIOR MENORIGUAL MAIORIGUAL IGUAL DIFERENTE ID NUM STR MAIN VIRGULA
 
 %type <str> PROGRAM MAIN_FUNC FUNC FUNC_DECL FUNC_CALL PARAM_LIST COMANDO_LIST COMANDO BLOCO DECLARACAO EXPRESSAO PRINT_FUNC LOOP FOR_LOOP CONDICAO INCREMENTO TYPE EXPRESSAO_LIST
 
@@ -56,17 +56,16 @@ PROGRAM:
     FUNC_DECL MAIN_FUNC
     {
         printf("[LOG] PROGRAM -> FUNC_DECL MAIN_FUNC\n");
-        $$ = malloc(strlen($1) + strlen($2) + 2);
-        sprintf($$, "%s\n%s", $1, $2);
 
         FILE *output = fopen("output.py", "w");
         if (!output) {
             perror("Erro ao abrir o arquivo de saída");
             exit(1);
         }
-        fprintf(output, "%s\n", $1);
-        fprintf(output, "%s\n", $2);
+
+        fprintf(output, "%s\n%s\n", $1, $2);
         fclose(output);
+
         printf("Transpilação concluída. Código gerado em 'output.py'.\n");
     }
     ;
@@ -89,7 +88,7 @@ FUNC:
     {
         printf("[LOG] FUNC -> TYPE ID (PARAM_LIST) { COMANDO_LIST }\n");
         $$ = malloc(strlen($2) + strlen($4) + strlen($7) + 50);
-        sprintf($$, "def %s(%s):\n    %s", $2, $4, $7); // Transforma para Python
+        sprintf($$, "def %s(%s):\n    %s", $2, $4, $7);
     }
     ;
 
@@ -112,14 +111,22 @@ PARAM_LIST:
     TYPE ID
     {
         printf("[LOG] PARAM_LIST -> TYPE ID\n");
-        $$ = malloc(strlen($1) + strlen($2) + 2);
-        sprintf($$, "%s %s", $1, $2);
+        // $$ = strdup($2); // Apenas o identificador é mantido
+        // sprintf($$, "%s", $2);
+
+        char buffer[128];
+        snprintf(buffer, sizeof(buffer), "%s", $2);
+        $$ = strdup(buffer);
     }
     | PARAM_LIST VIRGULA TYPE ID
     {
         printf("[LOG] PARAM_LIST -> PARAM_LIST, TYPE ID\n");
-        $$ = malloc(strlen($1) + strlen($3) + strlen($4) + 5);
-        sprintf($$, "%s, %s %s", $1, $3, $4);
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "%s, %s", $1, $4);
+        $$ = strdup(buffer);
+
+        // $$ = malloc(strlen($1) + strlen($4) + 3);
+        // sprintf($$, "%s, %s", $1, $4); // Concatena os parâmetros sem tipos
     }
     ;
 
@@ -127,7 +134,7 @@ MAIN_FUNC:
     INT MAIN ABREP FECHAP ABRECH COMANDO_LIST FECHACH
     {
         printf("[LOG] MAIN_FUNC -> INT MAIN () { COMANDO_LIST }\n");
-        $$ = malloc(strlen($6) + 40);
+        $$ = malloc(strlen($6) + 50);
         sprintf($$, "if __name__ == \"__main__\":\n    %s", $6);
     }
     ;
@@ -140,8 +147,9 @@ COMANDO_LIST:
     | COMANDO_LIST COMANDO
     {
         printf("[LOG] COMANDO_LIST -> COMANDO_LIST COMANDO\n");
-        $$ = malloc(strlen($1) + strlen($2) + 2);
-        sprintf($$, "%s\n%s", $1, $2);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "%s\n        %s", $1, $2);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -153,7 +161,7 @@ COMANDO:
     | RETURN EXPRESSAO PONTOEVIRG
     {
         printf("[LOG] COMANDO -> return EXPRESSAO;\n");
-        $$ = malloc(strlen($2) + 10);
+        $$ = malloc(strlen($2) + 20);
         sprintf($$, "return %s", $2);
     }
     | FUNC_CALL PONTOEVIRG
@@ -164,26 +172,37 @@ COMANDO:
     | IF ABREP CONDICAO FECHAP BLOCO
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO\n");
-        $$ = malloc(strlen($3) + strlen($5) + 20);
-        sprintf($$, "if (%s):\n%s", $3, $5);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "if %s:\n        %s", $3, $5);
+        $$ = strdup(buffer);
     }
     | IF ABREP CONDICAO FECHAP BLOCO ELSE BLOCO
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else BLOCO\n");
-        $$ = malloc(strlen($3) + strlen($5) + strlen($7) + 30);
-        sprintf($$, "if (%s):\n%s\nelse:\n%s", $3, $5, $7);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "if %s:\n        %s\n    else:\n        %s", $3, $5, $7);
+        $$ = strdup(buffer);
     }
     | ELSE BLOCO
     {
         printf("[LOG] COMANDO -> else BLOCO\n");
-        $$ = malloc(strlen($2) + 10);
-        sprintf($$, "else:\n%s", $2);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "else:\n        %s", $2);
+        $$ = strdup(buffer);
     }
     | IF ABREP CONDICAO FECHAP BLOCO ELSE COMANDO
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else COMANDO\n");
-        $$ = malloc(strlen($3) + strlen($5) + strlen($7) + 30);
-        sprintf($$, "if (%s):\n%s\nelse:\n%s", $3, $5, $7);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "if %s:\n        %s\n    else:\n        %s", $3, $5, $7);
+        $$ = strdup(buffer);
+    }
+    | IF ABREP CONDICAO FECHAP BLOCO ELSE IF ABREP CONDICAO FECHAP BLOCO
+    {
+        printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else if (CONDICAO) BLOCO\n");
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "if %s:\n%s\nelif %s:\n%s", $3, $5, $9, $11);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -191,14 +210,16 @@ FUNC_CALL:
     ID ABREP FECHAP
     {
         printf("[LOG] FUNC_CALL -> ID()\n");
-        $$ = malloc(strlen($1) + 3);
-        sprintf($$, "%s()", $1);
+        char buffer[128];
+        snprintf(buffer, sizeof(buffer), "%s()", $1);
+        $$ = strdup(buffer);
     }
     | ID ABREP EXPRESSAO_LIST FECHAP
     {
         printf("[LOG] FUNC_CALL -> ID(EXPRESSAO_LIST)\n");
-        $$ = malloc(strlen($1) + strlen($3) + 5);
-        sprintf($$, "%s(%s)", $1, $3);
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "%s(%s)", $1, $3);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -206,8 +227,9 @@ DECLARACAO:
     INT ID ATRIB EXPRESSAO PONTOEVIRG
     {
         printf("[LOG] DECLARACAO -> INT ID = EXPRESSAO;\n");
-        $$ = malloc(strlen($2) + strlen($4) + 4);
-        sprintf($$, "%s = %s", $2, $4);
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "%s = %s", $2, $4);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -224,8 +246,9 @@ PRINT_FUNC:
     PRINTF ABREP STR VIRGULA EXPRESSAO FECHAP PONTOEVIRG
     {
         printf("[LOG] PRINT_FUNC -> printf(STR, EXPRESSAO);\n");
-        $$ = malloc(strlen($3) + strlen($5) + 20); // $3 e $5 são do tipo `char*` (STRING)
-        sprintf($$, "print(%s, %s)", $3, $5);
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "print(%s, %s)", $3, $5);
+        $$ = strdup(buffer);
     }
     | PRINTF ABREP STR FECHAP PONTOEVIRG
     {
@@ -254,20 +277,26 @@ LOOP:
     {
         $$ = strdup($1);
     }
-    | WHILE ABREP CONDICAO FECHAP BLOCO
-    {
-        printf("[LOG] LOOP -> WHILE (CONDICAO) BLOCO\n");
-        $$ = malloc(strlen($3) + strlen($5) + 10);
-        sprintf($$, "while %s:\n%s", $3, $5);
-    }
     ;
 
 FOR_LOOP:
     FOR ABREP DECLARACAO CONDICAO PONTOEVIRG INCREMENTO FECHAP BLOCO
     {
         printf("[LOG] FOR_LOOP -> FOR (DECLARACAO; CONDICAO; INCREMENTO) BLOCO\n");
-        $$ = malloc(strlen($3) + strlen($4) + strlen($6) + strlen($8) + 50);
-        sprintf($$, "for %s in range(%s):\n%s", $3, $4, $8);
+        // Extração do identificador da variável do laço
+        char var[50];
+        sscanf($3, "%s", var); // Exemplo: "int i = 0" -> extrai "i"
+
+        // Extração dos limites do laço
+        char start[50];
+        char end[50];
+        sscanf($3, "%*[^=]= %s", start); // Exemplo: "int i = 1" -> extrai "1"
+        sscanf($5, "%[^<>=!]", end); // Exemplo: "i < 10" -> extrai "10"
+
+        // Monta o laço no formato de Python
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "for %s in range(%s, %s):\n        %s", var, start, end, $8);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -322,6 +351,18 @@ CONDICAO:
         printf("[LOG] CONDICAO -> EXPRESSAO > EXPRESSAO\n");
         $$ = malloc(strlen($1) + strlen($3) + 4);
         sprintf($$, "%s > %s", $1, $3);
+    }
+    | EXPRESSAO MENORIGUAL EXPRESSAO
+    {
+        printf("[LOG] CONDICAO -> EXPRESSAO <= EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 4);
+        sprintf($$, "%s <= %s", $1, $3);
+    }
+    | EXPRESSAO MAIORIGUAL EXPRESSAO
+    {
+        printf("[LOG] CONDICAO -> EXPRESSAO >= EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 4);
+        sprintf($$, "%s >= %s", $1, $3);
     }
     ;
 
@@ -388,6 +429,18 @@ EXPRESSAO:
         printf("[LOG] EXPRESSAO -> EXPRESSAO > EXPRESSAO\n");
         $$ = malloc(strlen($1) + strlen($3) + 4);
         sprintf($$, "%s > %s", $1, $3);
+    }
+    | EXPRESSAO MENORIGUAL EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO -> EXPRESSAO <= EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 4);
+        sprintf($$, "%s <= %s", $1, $3);
+    }
+    | EXPRESSAO MAIORIGUAL EXPRESSAO
+    {
+        printf("[LOG] EXPRESSAO -> EXPRESSAO >= EXPRESSAO\n");
+        $$ = malloc(strlen($1) + strlen($3) + 4);
+        sprintf($$, "%s >= %s", $1, $3);
     }
     ;
 
