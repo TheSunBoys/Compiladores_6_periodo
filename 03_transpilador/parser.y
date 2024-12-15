@@ -13,6 +13,22 @@ void yyerror(const char *msg) {
     fprintf(stderr, "Erro: %s na linha %d. Caractere problemático: '%s'\n", msg, yylineno, yytext);
 }
 
+int indent_level = 4; // Nível de indentação
+
+void increase_indent() {
+    indent_level++;
+}
+
+void decrease_indent() {
+    if (indent_level > 0) indent_level--;
+}
+
+char* get_indent() {
+    char *spaces = malloc((indent_level * 4) + 1); // 4 espaços por nível
+    memset(spaces, ' ', indent_level * 4);
+    spaces[indent_level * 4] = '\0';
+    return spaces;
+}
 
 %}
 
@@ -48,11 +64,10 @@ PROGRAM:
             perror("Erro ao abrir o arquivo de saída");
             exit(1);
         }
-
         fprintf(file, "%s\n", $1);
         fprintf(file, "%s\n", $2);
         fclose(file);
-
+        
         printf("Transpilação concluída. Código gerado em 'output.py'.\n");
     }
     ;
@@ -60,7 +75,7 @@ PROGRAM:
 FUNC_DECL:
     /* vazio */
     {
-        $$ = "";
+        $$ = strdup("");
     }
     | FUNC_DECL FUNC
     {
@@ -76,7 +91,7 @@ FUNC:
     {
         printf("[LOG] FUNC -> TYPE ID (PARAM_LIST) { COMANDO_LIST }\n");
         char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "def %s(%s):\n        %s", $2, $4, $7);
+        snprintf(buffer, sizeof(buffer), "def %s(%s):\n    %s", $2, $4, $7);
         $$ = strdup(buffer);
     }
     ;
@@ -84,15 +99,15 @@ FUNC:
 TYPE:
     INT
     {
-        $$ = "int";
+        $$ = strdup("int");
     }
     | FLOAT
     {
-        $$ = "float";
+        $$ = strdup("float");
     }
     | VOID
     {
-        $$ = "void";
+        $$ = strdup("void");
     }
     ;
 
@@ -118,7 +133,7 @@ MAIN_FUNC:
     {
         printf("[LOG] MAIN_FUNC -> INT MAIN () { COMANDO_LIST }\n");
         char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "if __name__ == \"__main__\":\n        %s", $6);
+        snprintf(buffer, sizeof(buffer), "if __name__ == \"__main__\":\n    %s", $6);
         $$ = strdup(buffer);
     }
     ;
@@ -126,13 +141,13 @@ MAIN_FUNC:
 COMANDO_LIST:
     /* vazio */
     {
-        $$ = "";
+        $$ = strdup("");
     }
     | COMANDO_LIST COMANDO
     {
         printf("[LOG] COMANDO_LIST -> COMANDO_LIST COMANDO\n");
         char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "%s\n        %s", $1, $2);
+        snprintf(buffer, sizeof(buffer), "%s\n    %s", $1, $2);
         $$ = strdup(buffer);
     }
     ;
@@ -158,29 +173,27 @@ COMANDO:
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO\n");
         char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "if (%s):\n        %s", $3, $5);
+        snprintf(buffer, sizeof(buffer), "if (%s):\n    %s", $3, $5);
         $$ = strdup(buffer);
     }
     | IF ABREP CONDICAO FECHAP BLOCO ELSE BLOCO
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else BLOCO\n");
         char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "if (%s):\n        %s\nelse:\n        %s", $3, $5, $7);
+        snprintf(buffer, sizeof(buffer), "if (%s):\n    %s\nelse:\n    %s", $3, $5, $7);
         $$ = strdup(buffer);
     }
     | ELSE BLOCO
     {
         printf("[LOG] COMANDO -> else BLOCO\n");
-        char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "else:\n        %s", $2);
-        $$ = strdup(buffer);
+        $$ = malloc(strlen($2) + 10);
+        sprintf($$, "else:\n%s", $2);
     }
     | IF ABREP CONDICAO FECHAP BLOCO ELSE COMANDO
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else COMANDO\n");
-        char buffer[4096];
-        snprintf(buffer, sizeof(buffer), "if (%s):\n        %s\nelse:\n        %s", $3, $5, $7);
-        $$ = strdup(buffer);
+        $$ = malloc(strlen($3) + strlen($5) + strlen($7) + 30);
+        sprintf($$, "if (%s):\n%s\nelse:\n%s", $3, $5, $7);
     }
     ;
 
@@ -216,7 +229,7 @@ BLOCO:
     {
         printf("[LOG] BLOCO -> { COMANDO_LIST }\n");
         $$ = malloc(strlen($2) + 10);
-        sprintf($$, "        %s", $2);
+        sprintf($$, "    %s", $2);
     }
     ;
 
@@ -259,7 +272,7 @@ LOOP:
     {
         printf("[LOG] LOOP -> WHILE (CONDICAO) BLOCO\n");
         $$ = malloc(strlen($3) + strlen($5) + 10);
-        sprintf($$, "while %s:\n        %s", $3, $5);
+        sprintf($$, "while %s:\n%s", $3, $5);
     }
     ;
 
@@ -268,7 +281,7 @@ FOR_LOOP:
     {
         printf("[LOG] FOR_LOOP -> FOR (DECLARACAO; CONDICAO; INCREMENTO) BLOCO\n");
         $$ = malloc(strlen($3) + strlen($4) + strlen($6) + strlen($8) + 50);
-        sprintf($$, "for %s in range(%s):\n        %s", $3, $4, $8);
+        sprintf($$, "for %s in range(%s):\n%s", $3, $4, $8);
     }
     ;
 
