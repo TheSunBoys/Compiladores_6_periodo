@@ -13,7 +13,7 @@ void yyerror(const char *msg) {
     fprintf(stderr, "Erro: %s na linha %d. Caractere problemático: '%s'\n", msg, yylineno, yytext);
 }
 
-int indent_level = 4; // Nível de indentação
+int indent_level = 3; // Nível de indentação
 
 void increase_indent() {
     indent_level++;
@@ -88,8 +88,10 @@ FUNC:
     TYPE ID ABREP PARAM_LIST FECHAP ABRECH COMANDO_LIST FECHACH
     {
         printf("[LOG] FUNC -> TYPE ID (PARAM_LIST) { COMANDO_LIST }\n");
+        // $$ = malloc(strlen($2) + strlen($4) + strlen($7) + 50);
+        // sprintf($$, "def %s(%s):\n    %s", $2, $4, $7); // Transforma para Python
         $$ = malloc(strlen($2) + strlen($4) + strlen($7) + 50);
-        sprintf($$, "def %s(%s):\n    %s", $2, $4, $7); // Transforma para Python
+        sprintf($$, "def %s(%s):\n%s", $2, $4, $7); // Remove a indentação desnecessária
     }
     ;
 
@@ -112,14 +114,17 @@ PARAM_LIST:
     TYPE ID
     {
         printf("[LOG] PARAM_LIST -> TYPE ID\n");
-        $$ = malloc(strlen($1) + strlen($2) + 2);
-        sprintf($$, "%s %s", $1, $2);
+        $$ = strdup($2); // Apenas o identificador é mantido
+        // $$ = malloc(strlen($1) + strlen($2) + 2);
+        sprintf($$, "%s", $2);
     }
     | PARAM_LIST VIRGULA TYPE ID
     {
         printf("[LOG] PARAM_LIST -> PARAM_LIST, TYPE ID\n");
-        $$ = malloc(strlen($1) + strlen($3) + strlen($4) + 5);
-        sprintf($$, "%s, %s %s", $1, $3, $4);
+        // $$ = malloc(strlen($1) + strlen($3) + strlen($4) + 5);
+        // sprintf($$, "%s, %s %s", $1, $3, $4);
+        $$ = malloc(strlen($1) + strlen($4) + 3);
+        sprintf($$, "%s, %s", $1, $4); // Concatena os parâmetros sem tipos
     }
     ;
 
@@ -265,9 +270,24 @@ LOOP:
 FOR_LOOP:
     FOR ABREP DECLARACAO CONDICAO PONTOEVIRG INCREMENTO FECHAP BLOCO
     {
+        // printf("[LOG] FOR_LOOP -> FOR (DECLARACAO; CONDICAO; INCREMENTO) BLOCO\n");
+        // $$ = malloc(strlen($3) + strlen($4) + strlen($6) + strlen($8) + 50);
+        // sprintf($$, "for %s in range(%s):\n%s", $3, $4, $8);
         printf("[LOG] FOR_LOOP -> FOR (DECLARACAO; CONDICAO; INCREMENTO) BLOCO\n");
-        $$ = malloc(strlen($3) + strlen($4) + strlen($6) + strlen($8) + 50);
-        sprintf($$, "for %s in range(%s):\n%s", $3, $4, $8);
+
+        // Extração do identificador da variável do laço
+        char var[50];
+        sscanf($3, "%s", var); // Exemplo: "int i = 0" -> extrai "i"
+
+        // Extração dos limites do laço
+        char start[50];
+        char end[50];
+        sscanf($3, "%*[^=]= %s", start); // Exemplo: "int i = 1" -> extrai "1"
+        sscanf($5, "%[^<>=!]", end); // Exemplo: "i < 10" -> extrai "10"
+
+        // Monta o laço no formato de Python
+        $$ = malloc(strlen(var) + strlen(start) + strlen(end) + strlen($8) + 50);
+        sprintf($$, "for %s in range(%s, %s):\n%s", var, start, end, $8);
     }
     ;
 

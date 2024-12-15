@@ -37,10 +37,10 @@ int main() {
     printf("Y é diferente de X: %d", x!=y);
 
     // chamada de função com pârametros posicionais
-    int sum = sum_foo(2, y);
+    int soma = sum_foo(2, y);
 
     // expressões aritmeticas
-    int z = x - 10 * sum / 4;
+    int z = x - 10 * soma / 4;
 
     // comando condicional
     if (z == 5) {
