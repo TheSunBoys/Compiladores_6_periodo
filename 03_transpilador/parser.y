@@ -13,22 +13,6 @@ void yyerror(const char *msg) {
     fprintf(stderr, "Erro: %s na linha %d. Caractere problemático: '%s'\n", msg, yylineno, yytext);
 }
 
-int indent_level = 4; // Nível de indentação
-
-void increase_indent() {
-    indent_level++;
-}
-
-void decrease_indent() {
-    if (indent_level > 0) indent_level--;
-}
-
-char* get_indent() {
-    char *spaces = malloc((indent_level * 4) + 1); // 4 espaços por nível
-    memset(spaces, ' ', indent_level * 4);
-    spaces[indent_level * 4] = '\0';
-    return spaces;
-}
 
 %}
 
@@ -56,17 +40,19 @@ PROGRAM:
     FUNC_DECL MAIN_FUNC
     {
         printf("[LOG] PROGRAM -> FUNC_DECL MAIN_FUNC\n");
-        $$ = malloc(strlen($1) + strlen($2) + 2);
-        sprintf($$, "%s\n%s", $1, $2);
+        char output[4096];
+        snprintf(output, sizeof(output), "%s\n%s", $1, $2);
 
-        FILE *output = fopen("output.py", "w");
-        if (!output) {
+        FILE *file = fopen("output.py", "w");
+        if (!file) {
             perror("Erro ao abrir o arquivo de saída");
             exit(1);
         }
-        fprintf(output, "%s\n", $1);
-        fprintf(output, "%s\n", $2);
-        fclose(output);
+
+        fprintf(file, "%s\n", $1);
+        fprintf(file, "%s\n", $2);
+        fclose(file);
+
         printf("Transpilação concluída. Código gerado em 'output.py'.\n");
     }
     ;
@@ -74,13 +60,14 @@ PROGRAM:
 FUNC_DECL:
     /* vazio */
     {
-        $$ = strdup("");
+        $$ = "";
     }
     | FUNC_DECL FUNC
     {
         printf("[LOG] FUNC_DECL -> FUNC_DECL FUNC\n");
-        $$ = malloc(strlen($1) + strlen($2) + 2);
-        sprintf($$, "%s\n%s", $1, $2);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "%s\n%s", $1, $2);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -88,23 +75,24 @@ FUNC:
     TYPE ID ABREP PARAM_LIST FECHAP ABRECH COMANDO_LIST FECHACH
     {
         printf("[LOG] FUNC -> TYPE ID (PARAM_LIST) { COMANDO_LIST }\n");
-        $$ = malloc(strlen($2) + strlen($4) + strlen($7) + 50);
-        sprintf($$, "def %s(%s):\n    %s", $2, $4, $7); // Transforma para Python
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "def %s(%s):\n        %s", $2, $4, $7);
+        $$ = strdup(buffer);
     }
     ;
 
 TYPE:
     INT
     {
-        $$ = strdup("int");
+        $$ = "int";
     }
     | FLOAT
     {
-        $$ = strdup("float");
+        $$ = "float";
     }
     | VOID
     {
-        $$ = strdup("void");
+        $$ = "void";
     }
     ;
 
@@ -112,14 +100,16 @@ PARAM_LIST:
     TYPE ID
     {
         printf("[LOG] PARAM_LIST -> TYPE ID\n");
-        $$ = malloc(strlen($1) + strlen($2) + 2);
-        sprintf($$, "%s %s", $1, $2);
+        char buffer[128];
+        snprintf(buffer, sizeof(buffer), "%s %s", $1, $2);
+        $$ = strdup(buffer);
     }
     | PARAM_LIST VIRGULA TYPE ID
     {
         printf("[LOG] PARAM_LIST -> PARAM_LIST, TYPE ID\n");
-        $$ = malloc(strlen($1) + strlen($3) + strlen($4) + 5);
-        sprintf($$, "%s, %s %s", $1, $3, $4);
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "%s, %s %s", $1, $3, $4);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -127,21 +117,23 @@ MAIN_FUNC:
     INT MAIN ABREP FECHAP ABRECH COMANDO_LIST FECHACH
     {
         printf("[LOG] MAIN_FUNC -> INT MAIN () { COMANDO_LIST }\n");
-        $$ = malloc(strlen($6) + 40);
-        sprintf($$, "if __name__ == \"__main__\":\n    %s", $6);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "if __name__ == \"__main__\":\n        %s", $6);
+        $$ = strdup(buffer);
     }
     ;
 
 COMANDO_LIST:
     /* vazio */
     {
-        $$ = strdup("");
+        $$ = "";
     }
     | COMANDO_LIST COMANDO
     {
         printf("[LOG] COMANDO_LIST -> COMANDO_LIST COMANDO\n");
-        $$ = malloc(strlen($1) + strlen($2) + 2);
-        sprintf($$, "%s\n%s", $1, $2);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "%s\n        %s", $1, $2);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -153,8 +145,9 @@ COMANDO:
     | RETURN EXPRESSAO PONTOEVIRG
     {
         printf("[LOG] COMANDO -> return EXPRESSAO;\n");
-        $$ = malloc(strlen($2) + 10);
-        sprintf($$, "return %s", $2);
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "return %s", $2);
+        $$ = strdup(buffer);
     }
     | FUNC_CALL PONTOEVIRG
     {
@@ -164,26 +157,30 @@ COMANDO:
     | IF ABREP CONDICAO FECHAP BLOCO
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO\n");
-        $$ = malloc(strlen($3) + strlen($5) + 20);
-        sprintf($$, "if (%s):\n%s", $3, $5);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "if (%s):\n        %s", $3, $5);
+        $$ = strdup(buffer);
     }
     | IF ABREP CONDICAO FECHAP BLOCO ELSE BLOCO
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else BLOCO\n");
-        $$ = malloc(strlen($3) + strlen($5) + strlen($7) + 30);
-        sprintf($$, "if (%s):\n%s\nelse:\n%s", $3, $5, $7);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "if (%s):\n        %s\nelse:\n        %s", $3, $5, $7);
+        $$ = strdup(buffer);
     }
     | ELSE BLOCO
     {
         printf("[LOG] COMANDO -> else BLOCO\n");
-        $$ = malloc(strlen($2) + 10);
-        sprintf($$, "else:\n%s", $2);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "else:\n        %s", $2);
+        $$ = strdup(buffer);
     }
     | IF ABREP CONDICAO FECHAP BLOCO ELSE COMANDO
     {
         printf("[LOG] COMANDO -> if (CONDICAO) BLOCO else COMANDO\n");
-        $$ = malloc(strlen($3) + strlen($5) + strlen($7) + 30);
-        sprintf($$, "if (%s):\n%s\nelse:\n%s", $3, $5, $7);
+        char buffer[4096];
+        snprintf(buffer, sizeof(buffer), "if (%s):\n        %s\nelse:\n        %s", $3, $5, $7);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -191,14 +188,16 @@ FUNC_CALL:
     ID ABREP FECHAP
     {
         printf("[LOG] FUNC_CALL -> ID()\n");
-        $$ = malloc(strlen($1) + 3);
-        sprintf($$, "%s()", $1);
+        char buffer[128];
+        snprintf(buffer, sizeof(buffer), "%s()", $1);
+        $$ = strdup(buffer);
     }
     | ID ABREP EXPRESSAO_LIST FECHAP
     {
         printf("[LOG] FUNC_CALL -> ID(EXPRESSAO_LIST)\n");
-        $$ = malloc(strlen($1) + strlen($3) + 5);
-        sprintf($$, "%s(%s)", $1, $3);
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "%s(%s)", $1, $3);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -206,8 +205,9 @@ DECLARACAO:
     INT ID ATRIB EXPRESSAO PONTOEVIRG
     {
         printf("[LOG] DECLARACAO -> INT ID = EXPRESSAO;\n");
-        $$ = malloc(strlen($2) + strlen($4) + 4);
-        sprintf($$, "%s = %s", $2, $4);
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "%s = %s", $2, $4);
+        $$ = strdup(buffer);
     }
     ;
 
@@ -216,7 +216,7 @@ BLOCO:
     {
         printf("[LOG] BLOCO -> { COMANDO_LIST }\n");
         $$ = malloc(strlen($2) + 10);
-        sprintf($$, "    %s", $2);
+        sprintf($$, "        %s", $2);
     }
     ;
 
@@ -224,8 +224,9 @@ PRINT_FUNC:
     PRINTF ABREP STR VIRGULA EXPRESSAO FECHAP PONTOEVIRG
     {
         printf("[LOG] PRINT_FUNC -> printf(STR, EXPRESSAO);\n");
-        $$ = malloc(strlen($3) + strlen($5) + 20); // $3 e $5 são do tipo `char*` (STRING)
-        sprintf($$, "print(%s, %s)", $3, $5);
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "print(%s, %s)", $3, $5);
+        $$ = strdup(buffer);
     }
     | PRINTF ABREP STR FECHAP PONTOEVIRG
     {
@@ -258,7 +259,7 @@ LOOP:
     {
         printf("[LOG] LOOP -> WHILE (CONDICAO) BLOCO\n");
         $$ = malloc(strlen($3) + strlen($5) + 10);
-        sprintf($$, "while %s:\n%s", $3, $5);
+        sprintf($$, "while %s:\n        %s", $3, $5);
     }
     ;
 
@@ -267,7 +268,7 @@ FOR_LOOP:
     {
         printf("[LOG] FOR_LOOP -> FOR (DECLARACAO; CONDICAO; INCREMENTO) BLOCO\n");
         $$ = malloc(strlen($3) + strlen($4) + strlen($6) + strlen($8) + 50);
-        sprintf($$, "for %s in range(%s):\n%s", $3, $4, $8);
+        sprintf($$, "for %s in range(%s):\n        %s", $3, $4, $8);
     }
     ;
 
